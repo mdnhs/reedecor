@@ -358,40 +358,49 @@ export class SupabaseDbService {
     if (data.email !== undefined) updates.email = data.email;
     updates.updated_at = new Date().toISOString();
 
-    if (merchantId === "demo-merchant-001" || merchantId === "user-merchant") {
-      // Upsert demo-merchant-001 with required password_hash
-      const { error: upsertErr } = await this.client.from("app_users").upsert(
-        {
-          id: "demo-merchant-001",
-          email: data.email || "demo@artisanfurniture.studio",
-          password_hash: "demo_hash",
-          name: data.name || "Artisan Living Studio",
-          role: "merchant",
-          status: "active",
-          ...updates,
-        },
-        { onConflict: "id" }
-      );
+    const targetUserId =
+      merchantId === "demo-merchant-001" || !merchantId ? "demo-merchant-001" : merchantId;
 
-      if (upsertErr) console.error("Error upserting demo-merchant-001:", upsertErr);
-
-      // Also update user-merchant with business profile fields (omitting email to avoid unique constraint collisions)
-      const userMerchantUpdates = { ...updates };
-      delete userMerchantUpdates.email;
-
-      const { error: updateErr } = await this.client
+    // Only update email if it doesn't conflict with another user
+    if (data.email) {
+      const { data: existingUserWithEmail } = await this.client
         .from("app_users")
-        .update(userMerchantUpdates)
-        .eq("id", "user-merchant");
+        .select("id")
+        .eq("email", data.email)
+        .maybeSingle();
 
-      if (updateErr) console.error("Error updating user-merchant:", updateErr);
-
-      return { success: !upsertErr };
+      if (!existingUserWithEmail || existingUserWithEmail.id === targetUserId) {
+        updates.email = data.email;
+      }
     }
 
-    const { error } = await this.client.from("app_users").update(updates).eq("id", merchantId);
-    if (error) console.error("Error updating merchant profile:", error);
-    return { success: !error };
+    // Update target user
+    const { error: targetErr } = await this.client
+      .from("app_users")
+      .update(updates)
+      .eq("id", targetUserId);
+
+    if (targetErr) {
+      console.error(`Error updating ${targetUserId}:`, targetErr);
+    }
+
+    // Safely sync business profile fields (excluding email) across demo aliases
+    const profileSyncUpdates = { ...updates };
+    delete profileSyncUpdates.email;
+
+    if (targetUserId === "user-merchant") {
+      await this.client
+        .from("app_users")
+        .update(profileSyncUpdates)
+        .eq("id", "demo-merchant-001");
+    } else if (targetUserId === "demo-merchant-001") {
+      await this.client
+        .from("app_users")
+        .update(profileSyncUpdates)
+        .eq("id", "user-merchant");
+    }
+
+    return { success: !targetErr };
   }
 
   async getIsFollowing(merchantId: string, customerId: string): Promise<boolean> {

@@ -81,6 +81,9 @@ export default function CreateProductPage() {
   const [depth, setDepth] = useState("75");
   const [height, setHeight] = useState("82");
 
+  // 3D Generation Pipeline Option: Image to 3D vs Multi-Image to 3D
+  const [generationMode, setGenerationMode] = useState<"image_to_3d" | "multi_image_to_3d">("multi_image_to_3d");
+
   // Slots State
   const [slots, setSlots] = useState<Record<AngleView, ImageSlot>>(INITIAL_SLOTS);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -108,7 +111,7 @@ export default function CreateProductPage() {
     const isDuplicate = Object.values(slots).some(
       (s) => s.viewType !== viewType && s.file && s.file.name === file.name && s.file.size === file.size
     );
-    if (isDuplicate) {
+    if (isDuplicate && generationMode === "multi_image_to_3d") {
       setDuplicateWarning(
         `Notice: "${file.name}" is chosen for multiple views. Make sure each photo captures a distinct perspective.`
       );
@@ -159,7 +162,10 @@ export default function CreateProductPage() {
   const depthMm = normalizeDimension(depth);
   const heightMm = normalizeDimension(height);
 
-  const allImagesUploaded = Object.values(slots).every((s) => s.dataUrl !== null);
+  const allImagesUploaded =
+    generationMode === "image_to_3d"
+      ? slots.front.dataUrl !== null
+      : Object.values(slots).every((s) => s.dataUrl !== null);
 
   const handleOpenReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +178,11 @@ export default function CreateProductPage() {
       return;
     }
     if (!allImagesUploaded) {
-      setError("All 4 perspective photographs (Front, Back, Left, Right) are mandatory.");
+      if (generationMode === "image_to_3d") {
+        setError("Please upload a primary product photograph for Image to 3D generation.");
+      } else {
+        setError("All 4 perspective photographs (Front, Back, Left, Right) are mandatory for Multi-Image to 3D.");
+      }
       return;
     }
     setError(null);
@@ -185,18 +195,21 @@ export default function CreateProductPage() {
     setError(null);
 
     try {
-      const imagesPayload = (["front", "back", "left", "right"] as AngleView[]).map(
-        (view) => {
-          const slot = slots[view];
-          return {
-            viewType: view,
-            publicUrl: slot.dataUrl!,
-            fileName: slot.file?.name || `${view}.jpg`,
-            mimeType: slot.file?.type || "image/jpeg",
-            fileSizeBytes: slot.file?.size || 0,
-          };
-        }
-      );
+      const viewsToInclude: AngleView[] =
+        generationMode === "image_to_3d"
+          ? ["front"]
+          : (["front", "back", "left", "right"] as AngleView[]);
+
+      const imagesPayload = viewsToInclude.map((view) => {
+        const slot = slots[view];
+        return {
+          viewType: view,
+          publicUrl: slot.dataUrl!,
+          fileName: slot.file?.name || `${view}.jpg`,
+          mimeType: slot.file?.type || "image/jpeg",
+          fileSizeBytes: slot.file?.size || 0,
+        };
+      });
 
       const res = await fetch("/api/products", {
         method: "POST",
@@ -209,6 +222,7 @@ export default function CreateProductPage() {
           depthMm,
           heightMm,
           priceBdt: Math.max(1, parseFloat(priceBdt) || 18500),
+          generationMode,
           images: imagesPayload,
         }),
       });
@@ -221,7 +235,7 @@ export default function CreateProductPage() {
       const createdProduct = json.data;
 
       // Cache images in IndexedDB
-      for (const view of ["front", "back", "left", "right"] as AngleView[]) {
+      for (const view of viewsToInclude) {
         const slot = slots[view];
         if (slot.file) {
           await saveProductImageToIDB(
@@ -458,19 +472,70 @@ export default function CreateProductPage() {
           </CardContent>
         </Card>
 
-        {/* Section 2: Four-Angle Dedicated Upload Zones */}
-        <div className="space-y-4">
+        {/* Section 2: Generation Mode & Dedicated Upload Zones */}
+        <div className="space-y-5">
+          {/* Pipeline Mode Switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200/90 studio-card-shadow">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-700" />
+                <h3 className="text-sm font-bold text-stone-900 font-display">
+                  2. Choose 3D Generation Pipeline
+                </h3>
+              </div>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Select between single photograph AI depth estimation or full 4-angle multi-view reconstruction
+              </p>
+            </div>
+
+            {/* Toggle Segmented Switcher */}
+            <div className="flex items-center p-1 bg-stone-100 rounded-xl border border-stone-200/70 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setGenerationMode("image_to_3d")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  generationMode === "image_to_3d"
+                    ? "bg-white text-stone-900 shadow-xs border border-stone-200/60"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5 text-amber-600" />
+                <span>Image to 3D (1 Photo)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGenerationMode("multi_image_to_3d")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  generationMode === "multi_image_to_3d"
+                    ? "bg-white text-stone-900 shadow-xs border border-stone-200/60"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>Multi Image to 3D (4 Angles)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Mode Header & Upload Status */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-stone-900 font-display">
-                2. Four-Angle Photography
-              </h2>
+              <h4 className="text-sm font-bold text-stone-900">
+                {generationMode === "image_to_3d"
+                  ? "Single Product Photograph Upload"
+                  : "Four-Angle Multi-Perspective Photography"}
+              </h4>
               <p className="text-xs text-stone-500">
-                Photograph the product under consistent studio lighting against a clean background
+                {generationMode === "image_to_3d"
+                  ? "Upload a clean, well-lit photograph of the furniture piece against a plain background"
+                  : "Photograph the product under consistent studio lighting from all four cardinal angles"}
               </p>
             </div>
             <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/70 px-3 py-1 rounded-full self-start sm:self-auto">
-              {Object.values(slots).filter((s) => s.file !== null).length} of 4 angles uploaded
+              {generationMode === "image_to_3d"
+                ? `${slots.front.file !== null ? "1 of 1" : "0 of 1"} photo uploaded`
+                : `${Object.values(slots).filter((s) => s.file !== null).length} of 4 angles uploaded`}
             </span>
           </div>
 
@@ -478,23 +543,46 @@ export default function CreateProductPage() {
           <div className="p-3.5 rounded-xl border border-stone-200/80 bg-stone-50/60 flex items-center gap-3 text-xs text-stone-600">
             <Lightbulb className="h-4 w-4 text-amber-600 shrink-0" />
             <span>
-              <strong>Pro Tip:</strong> Place the furniture on a clean, neutral floor. Keep the camera height constant while rotating 90° around the object for best 3D reconstruction accuracy.
+              {generationMode === "image_to_3d" ? (
+                <>
+                  <strong>Single Image Tip:</strong> Best results are achieved with 3/4 or direct perspective in high-contrast neutral lighting without obstructions.
+                </>
+              ) : (
+                <>
+                  <strong>Multi-Angle Tip:</strong> Place the furniture on a clean, neutral floor. Keep the camera height constant while rotating 90° around the object for true 360° geometry.
+                </>
+              )}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {(["front", "back", "left", "right"] as AngleView[]).map((view) => {
-              const slot = slots[view];
-              return (
-                <DropzoneSlot
-                  key={view}
-                  slot={slot}
-                  onFileSelect={(file) => handleFileSelect(view, file)}
-                  onRemove={() => handleRemoveImage(view)}
-                />
-              );
-            })}
-          </div>
+          {/* Upload Dropzones */}
+          {generationMode === "image_to_3d" ? (
+            <div className="max-w-md mx-auto">
+              <DropzoneSlot
+                slot={{
+                  ...slots.front,
+                  title: "Primary Product Photo",
+                  description: "Direct view of the furniture piece in natural or studio lighting.",
+                }}
+                onFileSelect={(file) => handleFileSelect("front", file)}
+                onRemove={() => handleRemoveImage("front")}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {(["front", "back", "left", "right"] as AngleView[]).map((view) => {
+                const slot = slots[view];
+                return (
+                  <DropzoneSlot
+                    key={view}
+                    slot={slot}
+                    onFileSelect={(file) => handleFileSelect(view, file)}
+                    onRemove={() => handleRemoveImage(view)}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Primary CTA */}
@@ -521,7 +609,9 @@ export default function CreateProductPage() {
                   Review 3D Model Generation
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Confirm your product angles and Meshy AI multi-image parameters
+                  {generationMode === "image_to_3d"
+                    ? "Confirm single photograph and Meshy Image-to-3D parameters"
+                    : "Confirm your 4 product angles and Meshy Multi-Image parameters"}
                 </p>
               </div>
               <button
@@ -533,32 +623,56 @@ export default function CreateProductPage() {
               </button>
             </div>
 
-            {/* 4 Angle Preview Grid */}
-            <div className="grid grid-cols-4 gap-2.5">
-              {(["front", "back", "left", "right"] as AngleView[]).map((v) => (
-                <div key={v} className="space-y-1.5 text-center">
-                  <div className="aspect-square rounded-xl border border-stone-200 overflow-hidden bg-stone-100 shadow-2xs">
-                    {slots[v].previewUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={slots[v].previewUrl!}
-                        alt={v}
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                  </div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
-                    {v}
-                  </span>
+            {/* Image Preview Grid */}
+            {generationMode === "image_to_3d" ? (
+              <div className="max-w-xs mx-auto text-center space-y-1.5">
+                <div className="aspect-square rounded-xl border border-stone-200 overflow-hidden bg-stone-100 shadow-2xs">
+                  {slots.front.previewUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slots.front.previewUrl}
+                      alt="Primary Product"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
                 </div>
-              ))}
-            </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                  Primary Photo (Image to 3D)
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2.5">
+                {(["front", "back", "left", "right"] as AngleView[]).map((v) => (
+                  <div key={v} className="space-y-1.5 text-center">
+                    <div className="aspect-square rounded-xl border border-stone-200 overflow-hidden bg-stone-100 shadow-2xs">
+                      {slots[v].previewUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={slots[v].previewUrl!}
+                          alt={v}
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                      {v}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Specs Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-stone-200/80 bg-stone-50/70 text-xs">
               <div>
                 <span className="text-stone-400 block text-[11px]">Product</span>
                 <span className="font-bold text-stone-800">{name}</span>
+              </div>
+              <div>
+                <span className="text-stone-400 block text-[11px]">Pipeline Mode</span>
+                <span className="font-bold text-amber-800">
+                  {generationMode === "image_to_3d" ? "Image to 3D" : "Multi Image to 3D"}
+                </span>
               </div>
               <div>
                 <span className="text-stone-400 block text-[11px]">Category</span>
@@ -571,16 +685,14 @@ export default function CreateProductPage() {
                 </span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">AI Geometry</span>
-                <span className="font-bold text-stone-800">Standard PBR</span>
-              </div>
-              <div>
                 <span className="text-stone-400 block text-[11px]">Texture Map</span>
                 <span className="font-bold text-stone-800">2K Resolution</span>
               </div>
               <div>
                 <span className="text-stone-400 block text-[11px]">Estimated Cost</span>
-                <span className="font-bold text-amber-700">20 Demo Credits</span>
+                <span className="font-bold text-amber-700">
+                  {generationMode === "image_to_3d" ? "10 Demo Credits" : "20 Demo Credits"}
+                </span>
               </div>
             </div>
 

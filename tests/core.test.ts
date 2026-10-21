@@ -104,3 +104,27 @@ describe("WhatsApp Integration for Furniture Ordering", () => {
   });
 });
 
+describe("Single Image to 3D vs Multi-Image to 3D Options", () => {
+  const singleImageSchema = z
+    .array(
+      z.object({
+        viewType: z.enum(["front", "back", "left", "right", "single"]),
+        publicUrl: z.string().url(),
+      })
+    )
+    .min(1, "At least 1 image is required");
+
+  it("accepts a single image for Image to 3D mode", () => {
+    const singleImage = [
+      { viewType: "front" as const, publicUrl: "https://example.com/hero.jpg" },
+    ];
+    const result = singleImageSchema.safeParse(singleImage);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty image array for Image to 3D mode", () => {
+    const result = singleImageSchema.safeParse([]);
+    expect(result.success).toBe(false);
+  });
+});
+

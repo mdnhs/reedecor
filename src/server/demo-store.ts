@@ -9,11 +9,12 @@ export interface StoredProduct {
   heightMm: number;
   priceBdt: number;
   status: "draft" | "queued" | "processing" | "completed" | "failed";
+  generationMode?: "image_to_3d" | "multi_image_to_3d";
   createdAt: string;
   updatedAt: string;
   images: Array<{
     id: string;
-    viewType: "front" | "back" | "left" | "right";
+    viewType: "front" | "back" | "left" | "right" | "single";
     publicUrl: string;
     storagePath: string;
     fileName: string;

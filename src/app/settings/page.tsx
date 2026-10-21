@@ -54,6 +54,9 @@ export default function SettingsPage() {
   const [meshyGeometryResolution, setMeshyGeometryResolution] = useState("standard");
   const [meshyTextureResolution, setMeshyTextureResolution] = useState("2k");
   const [meshyCreditsPerGeneration, setMeshyCreditsPerGeneration] = useState("20");
+  const [defaultGenerationPipeline, setDefaultGenerationPipeline] = useState<
+    "image_to_3d" | "multi_image_to_3d"
+  >("multi_image_to_3d");
   const [usdToBdtRate, setUsdToBdtRate] = useState("122.50");
   const [costPerCreditUsd, setCostPerCreditUsd] = useState("0.05");
   const [savingAdminSettings, setSavingAdminSettings] = useState(false);
@@ -300,6 +303,32 @@ export default function SettingsPage() {
                         required
                       />
                     </div>
+                  </div>
+
+                  {/* 3D Generation Pipeline Engine Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                        3D GENERATION PIPELINE
+                      </span>
+                      <span className="text-[10px] text-amber-700 font-normal">Merchant & Studio Default</span>
+                    </label>
+                    <select
+                      value={defaultGenerationPipeline}
+                      onChange={(e) => setDefaultGenerationPipeline(e.target.value as "image_to_3d" | "multi_image_to_3d")}
+                      className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
+                    >
+                      <option value="multi_image_to_3d">
+                        Multi-Image to 3D (4 Angles: Front, Back, Left, Right — 360° True Geometry)
+                      </option>
+                      <option value="image_to_3d">
+                        Image to 3D (Single Photo — AI Depth & Fast Asset Generation)
+                      </option>
+                    </select>
+                    <p className="text-[11px] text-stone-500">
+                      Merchants can choose between <strong>Image to 3D</strong> (1 photo) or <strong>Multi-Image to 3D</strong> (4 angles) when creating new furniture pieces.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

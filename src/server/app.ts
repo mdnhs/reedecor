@@ -47,51 +47,67 @@ const switchDemoSchema = z.object({
   role: z.enum(["saas_admin", "merchant", "customer"]),
 });
 
-const createProductSchema = z.object({
-  name: z.string().min(2, "Product name must be at least 2 characters").max(100),
-  category: z.enum([
-    "Chair",
-    "Sofa",
-    "Table",
-    "Bed",
-    "Cabinet",
-    "Home Decor",
-    "Other",
-  ]),
-  description: z.string().max(1000).optional(),
-  widthMm: z.number().positive("Width must be positive"),
-  depthMm: z.number().positive("Depth must be positive"),
-  heightMm: z.number().positive("Height must be positive"),
-  priceBdt: z.number().positive("Price must be positive").default(18500),
-  images: z
-    .array(
-      z.object({
-        viewType: z.enum(["front", "back", "left", "right"]),
-        publicUrl: z.string().url(),
-        fileName: z.string(),
-        mimeType: z.string(),
-        fileSizeBytes: z.number().nonnegative(),
-        storagePath: z.string().optional(),
-      })
-    )
-    .refine((imgs) => imgs.length === 4, {
-      message: "Exactly four image views (front, back, left, right) are required",
-    })
-    .refine(
-      (imgs) => {
-        const views = new Set(imgs.map((i) => i.viewType));
-        return (
-          views.has("front") &&
-          views.has("back") &&
-          views.has("left") &&
-          views.has("right")
-        );
-      },
-      {
-        message: "All four angles must be present: front, back, left, right",
+const createProductSchema = z
+  .object({
+    name: z.string().min(2, "Product name must be at least 2 characters").max(100),
+    category: z.enum([
+      "Chair",
+      "Sofa",
+      "Table",
+      "Bed",
+      "Cabinet",
+      "Home Decor",
+      "Other",
+    ]),
+    description: z.string().max(1000).optional(),
+    widthMm: z.number().positive("Width must be positive"),
+    depthMm: z.number().positive("Depth must be positive"),
+    heightMm: z.number().positive("Height must be positive"),
+    priceBdt: z.number().positive("Price must be positive").default(18500),
+    generationMode: z
+      .enum(["image_to_3d", "multi_image_to_3d"])
+      .default("multi_image_to_3d"),
+    images: z
+      .array(
+        z.object({
+          viewType: z.enum(["front", "back", "left", "right", "single"]),
+          publicUrl: z.string().url(),
+          fileName: z.string(),
+          mimeType: z.string(),
+          fileSizeBytes: z.number().nonnegative(),
+          storagePath: z.string().optional(),
+        })
+      )
+      .min(1, "At least one product image is required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.generationMode === "multi_image_to_3d") {
+      if (data.images.length !== 4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Multi-Image to 3D requires exactly 4 angles (front, back, left, right)",
+          path: ["images"],
+        });
+        return;
       }
-    ),
-});
+      const views = new Set(data.images.map((i) => i.viewType));
+      if (!views.has("front") || !views.has("back") || !views.has("left") || !views.has("right")) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "All four angles must be present: front, back, left, right",
+          path: ["images"],
+        });
+      }
+    } else {
+      if (data.images.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Single Image to 3D requires at least 1 image",
+          path: ["images"],
+        });
+      }
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Authentication & RBAC Routes
@@ -358,6 +374,7 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
     depthMm: Math.round(body.depthMm),
     heightMm: Math.round(body.heightMm),
     priceBdt: Math.round(body.priceBdt || 18500),
+    generationMode: body.generationMode || (body.images.length === 1 ? "image_to_3d" : "multi_image_to_3d"),
     status: "draft",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -419,32 +436,55 @@ app.post("/products/:id/generate", async (c) => {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
 
-  if (product.images.length !== 4) {
+  const isSingleImage =
+    product.generationMode === "image_to_3d" || product.images.length === 1;
+
+  if (isSingleImage && product.images.length < 1) {
     return c.json(
-      { success: false, error: "Product must have all 4 angle images to generate 3D model" },
+      { success: false, error: "Product must have at least 1 image for Single Image to 3D" },
       400
     );
   }
 
-  const viewOrder = ["front", "back", "left", "right"];
-  const orderedImages = [...product.images].sort(
-    (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
-  );
-  const imageUrls = orderedImages.map((img) => img.publicUrl);
+  if (!isSingleImage && product.images.length < 4) {
+    return c.json(
+      { success: false, error: "Multi-Image to 3D requires all 4 angle views (front, back, left, right)" },
+      400
+    );
+  }
 
   const attemptId = `gen-${Date.now()}`;
   const settings = await supabaseDb.getSystemSettings();
   meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
-  const creditEstimate = settings.meshyCreditsPerGeneration;
+  const creditEstimate = isSingleImage ? 10 : settings.meshyCreditsPerGeneration;
 
   try {
-    const { taskId } = await meshyClient.createMultiImageTask({
-      imageUrls,
-      shouldTexture: true,
-      textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-      enablePbr: true,
-      modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-    });
+    let taskId: string;
+    if (isSingleImage) {
+      const res = await meshyClient.createImageTo3dTask({
+        imageUrl: product.images[0].publicUrl,
+        shouldTexture: true,
+        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
+        enablePbr: true,
+        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+      });
+      taskId = res.taskId;
+    } else {
+      const viewOrder = ["front", "back", "left", "right"];
+      const orderedImages = [...product.images].sort(
+        (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
+      );
+      const imageUrls = orderedImages.map((img) => img.publicUrl);
+
+      const res = await meshyClient.createMultiImageTask({
+        imageUrls,
+        shouldTexture: true,
+        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
+        enablePbr: true,
+        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+      });
+      taskId = res.taskId;
+    }
 
     const newAttempt = {
       id: attemptId,
@@ -536,7 +576,8 @@ app.get("/products/:id/status", async (c) => {
 
   if (latestAttempt.providerTaskId) {
     try {
-      const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId);
+      const mode = product.generationMode || (product.images.length === 1 ? "image_to_3d" : "multi_image_to_3d");
+      const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId, mode);
 
       if (task.status === "SUCCEEDED" && task.model_urls?.glb) {
         const modelUrl = task.model_urls.glb;
@@ -651,25 +692,41 @@ app.post("/products/:id/retry", async (c) => {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
 
-  const viewOrder = ["front", "back", "left", "right"];
-  const orderedImages = [...product.images].sort(
-    (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
-  );
-  const imageUrls = orderedImages.map((img) => img.publicUrl);
+  const isSingleImage =
+    product.generationMode === "image_to_3d" || product.images.length === 1;
 
   const attemptId = `gen-retry-${Date.now()}`;
   const settings = await supabaseDb.getSystemSettings();
   meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
-  const creditEstimate = settings.meshyCreditsPerGeneration;
+  const creditEstimate = isSingleImage ? 10 : settings.meshyCreditsPerGeneration;
 
   try {
-    const { taskId } = await meshyClient.createMultiImageTask({
-      imageUrls,
-      shouldTexture: true,
-      textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-      enablePbr: true,
-      modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-    });
+    let taskId: string;
+    if (isSingleImage) {
+      const res = await meshyClient.createImageTo3dTask({
+        imageUrl: product.images[0].publicUrl,
+        shouldTexture: true,
+        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
+        enablePbr: true,
+        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+      });
+      taskId = res.taskId;
+    } else {
+      const viewOrder = ["front", "back", "left", "right"];
+      const orderedImages = [...product.images].sort(
+        (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
+      );
+      const imageUrls = orderedImages.map((img) => img.publicUrl);
+
+      const res = await meshyClient.createMultiImageTask({
+        imageUrls,
+        shouldTexture: true,
+        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
+        enablePbr: true,
+        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+      });
+      taskId = res.taskId;
+    }
 
     const newAttempt = {
       id: attemptId,
