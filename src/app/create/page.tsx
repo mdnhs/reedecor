@@ -75,6 +75,7 @@ export default function CreateProductPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Chair");
   const [description, setDescription] = useState("");
+  const [priceBdt, setPriceBdt] = useState("32500");
   const [dimensionUnit, setDimensionUnit] = useState<"cm" | "mm">("cm");
   const [width, setWidth] = useState("85");
   const [depth, setDepth] = useState("75");
@@ -207,6 +208,7 @@ export default function CreateProductPage() {
           widthMm,
           depthMm,
           heightMm,
+          priceBdt: Math.max(1, parseFloat(priceBdt) || 18500),
           images: imagesPayload,
         }),
       });
@@ -317,8 +319,8 @@ export default function CreateProductPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="space-y-1.5 md:col-span-1">
                 <label className="text-xs font-bold text-stone-700">
                   Product Name <span className="text-rose-500">*</span>
                 </label>
@@ -331,7 +333,7 @@ export default function CreateProductPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-1">
                 <label className="text-xs font-bold text-stone-700">
                   Category <span className="text-rose-500">*</span>
                 </label>
@@ -348,6 +350,24 @@ export default function CreateProductPage() {
                   <option value="Home Decor">Home Decor</option>
                   <option value="Other">Other</option>
                 </select>
+              </div>
+
+              <div className="space-y-1.5 md:col-span-1">
+                <label className="text-xs font-bold text-stone-700 flex items-center justify-between">
+                  <span>Purchase Price (BDT ৳) <span className="text-rose-500">*</span></span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">৳</span>
+                  <Input
+                    type="number"
+                    required
+                    min="100"
+                    placeholder="e.g. 32500"
+                    value={priceBdt}
+                    onChange={(e) => setPriceBdt(e.target.value)}
+                    className="bg-white border-stone-200/90 pl-7 shadow-2xs font-mono font-semibold"
+                  />
+                </div>
               </div>
             </div>
 

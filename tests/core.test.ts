@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatDimension, formatCurrencyBDT } from "../src/lib/utils";
+import { cleanWhatsAppNumber, buildProductWhatsAppUrl } from "../src/lib/whatsapp";
 import { z } from "zod";
 
 describe("Product Dimension Normalization", () => {
@@ -78,3 +79,28 @@ describe("4-Angle Product Image Validation Schema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("WhatsApp Integration for Furniture Ordering", () => {
+  it("cleans standard and local Bangladeshi WhatsApp phone numbers", () => {
+    expect(cleanWhatsAppNumber("+880 1712-345678")).toBe("8801712345678");
+    expect(cleanWhatsAppNumber("01712345678")).toBe("8801712345678");
+  });
+
+  it("generates pre-filled WhatsApp link with specific product name, price in BDT, and dimensions", () => {
+    const url = buildProductWhatsAppUrl("+8801712345678", {
+      name: "Velvet Sheen Accent Chair",
+      category: "Chair",
+      priceBdt: 32500,
+      widthMm: 850,
+      depthMm: 780,
+      heightMm: 820,
+      storeUrl: "https://studio.artisan.com/viewer/prod-sheen-chair-01",
+    });
+
+    expect(url).toContain("https://wa.me/8801712345678?text=");
+    expect(url).toContain(encodeURIComponent("Velvet Sheen Accent Chair"));
+    expect(url).toContain(encodeURIComponent("৳32,500"));
+    expect(url).toContain(encodeURIComponent("850 x 780 x 820 mm"));
+  });
+});
+

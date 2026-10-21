@@ -85,6 +85,7 @@ export function DataTable({ products }: DataTableProps) {
                 <th className="py-3 px-4">Item</th>
                 <th className="py-3 px-4 hidden sm:table-cell">Category</th>
                 <th className="py-3 px-4 hidden md:table-cell">Scale (W × D × H)</th>
+                <th className="py-3 px-4">Price</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">3D Action</th>
               </tr>
@@ -92,7 +93,7 @@ export function DataTable({ products }: DataTableProps) {
             <tbody className="divide-y divide-stone-100">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-stone-400">
+                  <td colSpan={6} className="py-8 text-center text-stone-400">
                     No furniture items match your search.
                   </td>
                 </tr>
@@ -131,6 +132,10 @@ export function DataTable({ products }: DataTableProps) {
                     <td className="py-3 px-4 hidden md:table-cell font-medium text-stone-700">
                       {formatDimension(product.widthMm)} × {formatDimension(product.depthMm)} ×{" "}
                       {formatDimension(product.heightMm)}
+                    </td>
+
+                    <td className="py-3 px-4 font-bold text-stone-900 font-mono">
+                      ৳{(product.priceBdt || 18500).toLocaleString("en-BD")}
                     </td>
 
                     <td className="py-3 px-4">

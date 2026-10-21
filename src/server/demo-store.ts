@@ -7,6 +7,7 @@ export interface StoredProduct {
   widthMm: number;
   depthMm: number;
   heightMm: number;
+  priceBdt: number;
   status: "draft" | "queued" | "processing" | "completed" | "failed";
   createdAt: string;
   updatedAt: string;
@@ -44,6 +45,7 @@ export const initialProducts: StoredProduct[] = [
     widthMm: 850,
     depthMm: 780,
     heightMm: 820,
+    priceBdt: 32500,
     status: "completed",
     createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString(),
@@ -107,6 +109,7 @@ export const initialProducts: StoredProduct[] = [
     widthMm: 1200,
     depthMm: 600,
     heightMm: 450,
+    priceBdt: 45000,
     status: "completed",
     createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 11).toISOString(),

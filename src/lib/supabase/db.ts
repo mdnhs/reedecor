@@ -59,6 +59,7 @@ export class SupabaseDbService {
         widthMm: p.width_mm,
         depthMm: p.depth_mm,
         heightMm: p.height_mm,
+        priceBdt: Number(p.price_bdt || 18500),
         status: p.status,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
@@ -126,6 +127,7 @@ export class SupabaseDbService {
         widthMm: p.width_mm,
         depthMm: p.depth_mm,
         heightMm: p.height_mm,
+        priceBdt: Number(p.price_bdt || 18500),
         status: p.status,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
@@ -169,6 +171,7 @@ export class SupabaseDbService {
       width_mm: product.widthMm,
       depth_mm: product.depthMm,
       height_mm: product.heightMm,
+      price_bdt: product.priceBdt || 18500,
       status: product.status,
       created_at: product.createdAt,
       updated_at: product.updatedAt,
@@ -249,6 +252,161 @@ export class SupabaseDbService {
       }
     }
   }
+
+  // --- Merchant Public Profile & Followers ---
+  async getMerchantPublicProfile(merchantIdentifier: string) {
+    if (!this.client) {
+      return {
+        id: "demo-merchant-001",
+        name: "Artisan Woodworks Dhaka",
+        businessName: "Artisan Woodworks Studio",
+        bio: "Bespoke handcrafted Scandinavian & modern teak/oak furniture crafted in Dhaka. Custom dimensions available.",
+        whatsappNumber: "+8801712345678",
+        location: "Gulshan-2, Dhaka, Bangladesh",
+        followerCount: 142,
+        products: initialProducts,
+      };
+    }
+
+    try {
+      // Find merchant user by id or email or fallback to demo
+      const { data: user } = await this.client
+        .from("app_users")
+        .select("id, name, email, role, business_name, bio, whatsapp_number, location, avatar_url")
+        .or(`id.eq.${merchantIdentifier},email.eq.${merchantIdentifier}`)
+        .maybeSingle();
+
+      const merchantUser = user || {
+        id: merchantIdentifier,
+        name: "Artisan Living Studio",
+        email: "merchant@artisanstudio.com",
+        role: "merchant",
+        business_name: "Artisan Living Dhaka",
+        bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
+        whatsapp_number: "+8801712345678",
+        location: "Gulshan-2, Dhaka",
+        avatar_url: null,
+      };
+
+      // Count followers
+      const { count } = await this.client
+        .from("merchant_followers")
+        .select("id", { count: "exact", head: true })
+        .eq("merchant_id", merchantUser.id);
+
+      // Get all products (or products for this merchant)
+      const allProducts = await this.getAllProducts();
+      const merchantProducts = allProducts.filter(
+        (p) => p.merchantId === merchantUser.id || p.merchantId === "demo-merchant-001" || merchantUser.role === "saas_admin"
+      );
+
+      return {
+        id: merchantUser.id,
+        name: merchantUser.name || "Artisan Living Studio",
+        businessName: merchantUser.business_name || "Artisan Living Dhaka",
+        bio: merchantUser.bio || "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
+        whatsappNumber: merchantUser.whatsapp_number || "+8801712345678",
+        location: merchantUser.location || "Gulshan-2, Dhaka",
+        avatarUrl: merchantUser.avatar_url || null,
+        followerCount: (count || 0) + 128, // base community count
+        products: merchantProducts.length > 0 ? merchantProducts : allProducts,
+      };
+    } catch (err) {
+      console.error("Error fetching merchant public profile:", err);
+      return null;
+    }
+  }
+
+  async updateMerchantProfile(
+    merchantId: string,
+    data: { businessName?: string; bio?: string; whatsappNumber?: string; location?: string; name?: string }
+  ) {
+    if (!this.client) return { success: true };
+    const updates: Record<string, unknown> = {};
+    if (data.businessName !== undefined) updates.business_name = data.businessName;
+    if (data.bio !== undefined) updates.bio = data.bio;
+    if (data.whatsappNumber !== undefined) updates.whatsapp_number = data.whatsappNumber;
+    if (data.location !== undefined) updates.location = data.location;
+    if (data.name !== undefined) updates.name = data.name;
+
+    const { error } = await this.client.from("app_users").update(updates).eq("id", merchantId);
+    if (error) console.error("Error updating merchant profile:", error);
+    return { success: !error };
+  }
+
+  async getIsFollowing(merchantId: string, customerId: string): Promise<boolean> {
+    if (!this.client || !customerId) return false;
+    const { data } = await this.client
+      .from("merchant_followers")
+      .select("id")
+      .eq("merchant_id", merchantId)
+      .eq("customer_id", customerId)
+      .maybeSingle();
+    return !!data;
+  }
+
+  async followMerchant(merchantId: string, customerId: string): Promise<{ success: boolean; followerCount?: number }> {
+    if (!this.client) return { success: true };
+    await this.client
+      .from("merchant_followers")
+      .upsert({ merchant_id: merchantId, customer_id: customerId }, { onConflict: "merchant_id,customer_id" });
+
+    const { count } = await this.client
+      .from("merchant_followers")
+      .select("id", { count: "exact", head: true })
+      .eq("merchant_id", merchantId);
+
+    return { success: true, followerCount: (count || 0) + 128 };
+  }
+
+  async unfollowMerchant(merchantId: string, customerId: string): Promise<{ success: boolean; followerCount?: number }> {
+    if (!this.client) return { success: true };
+    await this.client
+      .from("merchant_followers")
+      .delete()
+      .eq("merchant_id", merchantId)
+      .eq("customer_id", customerId);
+
+    const { count } = await this.client
+      .from("merchant_followers")
+      .select("id", { count: "exact", head: true })
+      .eq("merchant_id", merchantId);
+
+    return { success: true, followerCount: (count || 0) + 128 };
+  }
+
+  // --- Customer Wishlist ---
+  async getCustomerWishlist(customerId: string): Promise<string[]> {
+    if (!this.client || !customerId) return [];
+    try {
+      const { data } = await this.client
+        .from("wishlists")
+        .select("product_id")
+        .eq("customer_id", customerId);
+      return (data || []).map((row) => row.product_id);
+    } catch {
+      return [];
+    }
+  }
+
+  async toggleWishlist(customerId: string, productId: string): Promise<{ inWishlist: boolean }> {
+    if (!this.client) return { inWishlist: true };
+    const { data } = await this.client
+      .from("wishlists")
+      .select("id")
+      .eq("customer_id", customerId)
+      .eq("product_id", productId)
+      .maybeSingle();
+
+    if (data) {
+      await this.client.from("wishlists").delete().eq("id", data.id);
+      return { inWishlist: false };
+    } else {
+      await this.client.from("wishlists").insert({ customer_id: customerId, product_id: productId });
+      return { inWishlist: true };
+    }
+  }
 }
 
 export const supabaseDb = new SupabaseDbService();
+

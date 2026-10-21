@@ -9,7 +9,12 @@ import {
   ArrowLeft,
   AlertTriangle,
   Box,
+  MessageCircle,
+  Heart,
+  Store,
+  ExternalLink,
 } from "lucide-react";
+import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,13 +27,50 @@ import { saveGeneratedModelToIDB, getGeneratedModelFromIDB } from "@/lib/storage
 import { useAuth } from "@/lib/auth/auth-context";
 
 function ViewerContent({ id }: { id: string }) {
-  const { isCustomer } = useAuth();
+  const { user, isCustomer } = useAuth();
   const [product, setProduct] = useState<StoredProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [pollingProgress, setPollingProgress] = useState<number>(30);
   const [downloading, setDownloading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadWishlist() {
+      if (!user) return;
+      try {
+        const res = await fetch("/api/wishlists");
+        const json = await res.json();
+        if (!ignore && json.success && Array.isArray(json.data)) {
+          setIsWishlisted(json.data.includes(id));
+        }
+      } catch (e) {
+        console.error("Error loading wishlist:", e);
+      }
+    }
+    loadWishlist();
+    return () => {
+      ignore = true;
+    };
+  }, [user, id]);
+
+  async function handleToggleWishlist() {
+    if (!user) {
+      alert("Please select a persona or sign in to add to your wishlist.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/wishlists/${id}/toggle`, { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        setIsWishlisted(json.data.inWishlist);
+      }
+    } catch (e) {
+      console.error("Error toggling wishlist:", e);
+    }
+  }
 
   // Initial Load
   useEffect(() => {
@@ -339,10 +381,16 @@ function ViewerContent({ id }: { id: string }) {
             <Card className="border-stone-200/80 bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs uppercase tracking-wider font-semibold text-stone-500">
-                  Model Specifications
+                  Model Specifications & Pricing
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-stone-100 items-baseline">
+                  <span className="text-stone-500">Purchase Price:</span>
+                  <span className="font-bold text-sm text-stone-900 font-mono">
+                    ৳{(product.priceBdt || 18500).toLocaleString("en-BD")}
+                  </span>
+                </div>
                 <div className="flex justify-between py-1 border-b border-stone-100">
                   <span className="text-stone-500">Format:</span>
                   <span className="font-semibold text-stone-900">GLB (Binary glTF 2.0)</span>
@@ -368,6 +416,68 @@ function ViewerContent({ id }: { id: string }) {
                   </span>
                 </div>
               </CardContent>
+            </Card>
+
+            {/* Direct Merchant WhatsApp Ordering Card */}
+            <Card className="border-emerald-200/80 bg-emerald-50/40 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                  <h4 className="text-xs font-bold text-emerald-900">Order via WhatsApp</h4>
+                </div>
+                <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium">
+                  Direct to Merchant
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-600 leading-relaxed">
+                Connect directly with the merchant with pre-filled dimensions, purchase price, and 3D preview link.
+              </p>
+              <div className="flex items-center gap-2">
+                <a
+                  href={buildProductWhatsAppUrl("+8801712345678", {
+                    id: product.id,
+                    name: product.name,
+                    category: product.category,
+                    priceBdt: product.priceBdt || 18500,
+                    widthMm: product.widthMm,
+                    depthMm: product.depthMm,
+                    heightMm: product.heightMm,
+                    storeUrl: typeof window !== "undefined" ? window.location.href : undefined,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1"
+                >
+                  <Button
+                    size="sm"
+                    className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white text-xs h-9 gap-1.5 shadow-xs font-medium"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Inquire on WhatsApp</span>
+                  </Button>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleToggleWishlist}
+                  className={`h-9 px-3 rounded-md border flex items-center justify-center transition-colors ${
+                    isWishlisted
+                      ? "bg-rose-50 border-rose-200 text-rose-600"
+                      : "bg-white border-stone-200 text-stone-600 hover:text-rose-600 hover:bg-stone-50"
+                  }`}
+                  title={isWishlisted ? "In Wishlist" : "Save to Wishlist"}
+                >
+                  <Heart className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
+                </button>
+              </div>
+              <Link
+                href={`/store/${product.merchantId || "demo-merchant-001"}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 text-[11px] text-stone-600 hover:text-stone-900 font-medium transition-colors pt-1"
+              >
+                <Store className="w-3.5 h-3.5 text-amber-700" />
+                <span>Visit Merchant Storefront</span>
+                <ExternalLink className="w-2.5 h-2.5 ml-0.5 text-stone-400" />
+              </Link>
             </Card>
           </div>
         </div>

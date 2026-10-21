@@ -62,6 +62,7 @@ const createProductSchema = z.object({
   widthMm: z.number().positive("Width must be positive"),
   depthMm: z.number().positive("Depth must be positive"),
   heightMm: z.number().positive("Height must be positive"),
+  priceBdt: z.number().positive("Price must be positive").default(18500),
   images: z
     .array(
       z.object({
@@ -356,6 +357,7 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
     widthMm: Math.round(body.widthMm),
     depthMm: Math.round(body.depthMm),
     heightMm: Math.round(body.heightMm),
+    priceBdt: Math.round(body.priceBdt || 18500),
     status: "draft",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -751,3 +753,103 @@ app.get("/credits/usage", async (c) => {
     },
   });
 });
+
+// ---------------------------------------------------------------------------
+// Merchant Public Storefront & Settings Endpoints
+// ---------------------------------------------------------------------------
+
+// 1. Get Merchant Public Profile & Catalog (Publicly Accessible)
+app.get("/merchants/:id/public", async (c) => {
+  const merchantId = c.req.param("id");
+  const profile = await supabaseDb.getMerchantPublicProfile(merchantId);
+
+  if (!profile) {
+    return c.json({ success: false, error: "Merchant not found" }, 404);
+  }
+
+  return c.json({ success: true, data: profile });
+});
+
+// 2. Update Merchant Profile (Merchant / Admin Only)
+const updateMerchantSchema = z.object({
+  businessName: z.string().max(100).optional(),
+  bio: z.string().max(500).optional(),
+  whatsappNumber: z.string().max(25).optional(),
+  location: z.string().max(100).optional(),
+  name: z.string().max(100).optional(),
+});
+
+app.patch("/merchants/profile", zValidator("json", updateMerchantSchema), async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+
+  const body = c.req.valid("json");
+  const res = await supabaseDb.updateMerchantProfile(currentUser.id, body);
+  return c.json(res);
+});
+
+// 3. Check if current user follows merchant
+app.get("/merchants/:id/is-following", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: true, data: { isFollowing: false } });
+  }
+
+  const merchantId = c.req.param("id");
+  const isFollowing = await supabaseDb.getIsFollowing(merchantId, currentUser.id);
+  return c.json({ success: true, data: { isFollowing } });
+});
+
+// 4. Follow Merchant
+app.post("/merchants/:id/follow", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Authentication required to follow merchant" }, 401);
+  }
+
+  const merchantId = c.req.param("id");
+  const res = await supabaseDb.followMerchant(merchantId, currentUser.id);
+  return c.json(res);
+});
+
+// 5. Unfollow Merchant
+app.delete("/merchants/:id/follow", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+
+  const merchantId = c.req.param("id");
+  const res = await supabaseDb.unfollowMerchant(merchantId, currentUser.id);
+  return c.json(res);
+});
+
+// ---------------------------------------------------------------------------
+// Customer Wishlist Endpoints
+// ---------------------------------------------------------------------------
+
+// 1. Get current customer wishlist product IDs
+app.get("/wishlists", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: true, data: [] });
+  }
+
+  const productIds = await supabaseDb.getCustomerWishlist(currentUser.id);
+  return c.json({ success: true, data: productIds });
+});
+
+// 2. Toggle item in wishlist
+app.post("/wishlists/:productId/toggle", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Authentication required for wishlist" }, 401);
+  }
+
+  const productId = c.req.param("productId");
+  const res = await supabaseDb.toggleWishlist(currentUser.id, productId);
+  return c.json({ success: true, data: res });
+});
+

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -35,9 +36,17 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
   const pathname = usePathname();
   const { user, role, isSaasAdmin, isCustomer, logout, switchDemoRole } = useAuth();
 
+  const merchantStoreId = user?.id || "demo-merchant-001";
+
   const navPlatform = [
     { name: "Overview", href: "/", icon: LayoutDashboard, show: true },
     { name: "My Products", href: "/products", icon: Box, show: true },
+    {
+      name: "Public Store",
+      href: `/store/${merchantStoreId}`,
+      icon: Store,
+      show: true,
+    },
     {
       name: "Create 3D Model",
       href: "/create",
