@@ -68,13 +68,13 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
   ];
 
   return (
-    <div className="min-h-screen w-full bg-stone-100/80 flex text-stone-900 antialiased font-sans">
+    <div className="h-screen w-full bg-stone-100/80 flex text-stone-900 antialiased font-sans overflow-hidden">
       {/* ----------------------------------------------------------------- */}
-      {/* 1. AppSidebar (shadcn dashboard-01 Inset Style)                   */}
+      {/* 1. AppSidebar (shadcn dashboard-01 Inset Style - Fixed/Pinned)    */}
       {/* ----------------------------------------------------------------- */}
       <aside
         className={cn(
-          "hidden md:flex flex-col justify-between shrink-0 transition-all duration-200 ease-in-out py-3 pl-3",
+          "hidden md:flex flex-col justify-between shrink-0 h-screen sticky top-0 transition-all duration-200 ease-in-out py-3 pl-3",
           sidebarCollapsed ? "w-18" : "w-64"
         )}
       >
@@ -382,7 +382,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
       {/* ----------------------------------------------------------------- */}
       {/* 2. SidebarInset: Floating Inset Rounded Container (shadcn 01)     */}
       {/* ----------------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col min-w-0 my-2 sm:my-3 mr-2 sm:mr-3 ml-2 md:ml-0 rounded-2xl bg-white border border-stone-200/90 shadow-xs overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] sm:h-[calc(100vh-1.5rem)] my-2 sm:my-3 mr-2 sm:mr-3 ml-2 md:ml-0 rounded-2xl bg-white border border-stone-200/90 shadow-xs overflow-hidden">
         {/* SiteHeader inside Inset Container */}
         <header className="h-14 shrink-0 border-b border-stone-200/80 px-4 sm:px-6 flex items-center justify-between bg-white/95 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-2">
