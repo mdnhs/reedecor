@@ -36,6 +36,7 @@ export interface MeshyTaskResponse {
   task_error?: {
     message: string;
   };
+  model_url?: string;
   model_urls?: {
     glb?: string;
     fbx?: string;

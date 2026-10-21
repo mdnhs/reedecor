@@ -116,8 +116,13 @@ export function ModelViewer({
     setLoading(true);
     setLoadError(null);
 
+    const resolvedUrl =
+      modelUrl.startsWith("http://") || modelUrl.startsWith("https://")
+        ? `/api/proxy-model?url=${encodeURIComponent(modelUrl)}`
+        : modelUrl;
+
     loader.load(
-      modelUrl,
+      resolvedUrl,
       (gltf) => {
         if (!isMounted) return;
 

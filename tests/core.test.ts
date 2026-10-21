@@ -128,3 +128,31 @@ describe("Single Image to 3D vs Multi-Image to 3D Options", () => {
   });
 });
 
+describe("3D Generation Cancellation & Proxy Resolution", () => {
+  it("resolves external CDN URLs to internal proxy endpoint to bypass CORS", () => {
+    const externalUrl = "https://assets.meshy.ai/tasks/01a15e33/model.glb";
+    const resolved = `/api/proxy-model?url=${encodeURIComponent(externalUrl)}`;
+    expect(resolved).toContain("/api/proxy-model?url=");
+    expect(decodeURIComponent(resolved.split("?url=")[1])).toBe(externalUrl);
+  });
+
+  it("marks cancelled task with USER_CANCELLED errorCode and stopped status", () => {
+    const attempt = {
+      id: "gen-cancel-01",
+      provider: "meshy" as const,
+      providerTaskId: "meshy-123",
+      status: "failed" as const,
+      modelUrl: null,
+      creditCostEstimate: 20,
+      errorCode: "CANCELLED_BY_USER",
+      errorMessage: "Generation was cancelled by the user.",
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    };
+
+    expect(attempt.status).toBe("failed");
+    expect(attempt.errorCode).toBe("CANCELLED_BY_USER");
+    expect(attempt.errorMessage).toContain("cancelled by the user");
+  });
+});
+

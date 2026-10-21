@@ -212,7 +212,7 @@ export class SupabaseDbService {
     attempt: StoredProduct["generationAttempts"][0]
   ): Promise<void> {
     if (!this.client) return;
-    await this.client.from("generation_attempts").insert({
+    const { error } = await this.client.from("generation_attempts").insert({
       id: attempt.id,
       product_id: productId,
       provider: attempt.provider,
@@ -223,8 +223,11 @@ export class SupabaseDbService {
       error_code: attempt.errorCode,
       error_message: attempt.errorMessage,
       created_at: attempt.createdAt,
-      completedAt: attempt.completedAt,
+      completed_at: attempt.completedAt,
     });
+    if (error) {
+      console.error("Supabase addGenerationAttempt error:", error);
+    }
   }
 
   async updateGenerationAttempt(
@@ -240,7 +243,10 @@ export class SupabaseDbService {
     if (updates.completedAt !== undefined) mapped.completed_at = updates.completedAt;
     mapped.updated_at = new Date().toISOString();
 
-    await this.client.from("generation_attempts").update(mapped).eq("id", attemptId);
+    const { error } = await this.client.from("generation_attempts").update(mapped).eq("id", attemptId);
+    if (error) {
+      console.error("Supabase updateGenerationAttempt error:", error);
+    }
   }
 
   async seedInitialProducts(): Promise<void> {

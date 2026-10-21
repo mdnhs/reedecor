@@ -549,16 +549,29 @@ app.post("/products/:id/generate", async (c) => {
 // Check Generation Status (Accessible to All)
 app.get("/products/:id/status", async (c) => {
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
+  let product = await supabaseDb.getProductById(id);
+  const memProd = inMemoryStore.getById(id);
+  if (product && memProd && product.generationAttempts.length === 0 && memProd.generationAttempts.length > 0) {
+    product.generationAttempts = memProd.generationAttempts;
+  }
+  if (!product) {
+    product = memProd;
+  }
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
 
   const latestAttempt = product.generationAttempts[0];
   if (!latestAttempt) {
+    if (product.status === "completed") {
+      return c.json({
+        success: true,
+        data: { status: "completed", progress: 100 },
+      });
+    }
     return c.json({
       success: true,
-      data: { status: product.status, progress: 0 },
+      data: { status: product.status, progress: product.status === "processing" ? 30 : 0 },
     });
   }
 
@@ -576,11 +589,14 @@ app.get("/products/:id/status", async (c) => {
 
   if (latestAttempt.providerTaskId) {
     try {
+      const settings = await supabaseDb.getSystemSettings();
+      meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
+
       const mode = product.generationMode || (product.images.length === 1 ? "image_to_3d" : "multi_image_to_3d");
       const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId, mode);
 
-      if (task.status === "SUCCEEDED" && task.model_urls?.glb) {
-        const modelUrl = task.model_urls.glb;
+      if (task.status === "SUCCEEDED" && (task.model_urls?.glb || task.model_url)) {
+        const modelUrl = task.model_urls?.glb || task.model_url || "";
 
         await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
           status: "completed",
@@ -767,6 +783,112 @@ app.post("/products/:id/retry", async (c) => {
       },
       500
     );
+  }
+});
+
+// Cancel 3D Generation Task (Merchant or SaaS Admin)
+app.post("/products/:id/cancel", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      { success: false, error: "Customer accounts cannot cancel 3D generation." },
+      403
+    );
+  }
+
+  const id = c.req.param("id");
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
+  if (!product) {
+    return c.json({ success: false, error: "Product not found" }, 404);
+  }
+
+  if (product.status === "completed") {
+    return c.json(
+      { success: false, error: "Cannot cancel an already completed 3D generation." },
+      400
+    );
+  }
+
+  const now = new Date().toISOString();
+  let body: { resetToDraft?: boolean } = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    body = {};
+  }
+  const targetStatus = body.resetToDraft ? "draft" : "failed";
+
+  const latestAttempt = product.generationAttempts[0];
+  if (latestAttempt && (latestAttempt.status === "processing" || latestAttempt.status === "queued")) {
+    await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
+      status: "failed",
+      errorCode: "CANCELLED_BY_USER",
+      errorMessage: "Generation was cancelled by the user.",
+      completedAt: now,
+    });
+  }
+
+  await supabaseDb.updateProductStatus(id, targetStatus);
+
+  inMemoryStore.update(id, (p) => {
+    const updatedAttempts = [...p.generationAttempts];
+    if (
+      updatedAttempts[0] &&
+      (updatedAttempts[0].status === "processing" || updatedAttempts[0].status === "queued")
+    ) {
+      updatedAttempts[0] = {
+        ...updatedAttempts[0],
+        status: "failed",
+        errorCode: "CANCELLED_BY_USER",
+        errorMessage: "Generation was cancelled by the user.",
+        completedAt: now,
+      };
+    }
+    return {
+      ...p,
+      status: targetStatus,
+      updatedAt: now,
+      generationAttempts: updatedAttempts,
+    };
+  });
+
+  const updatedProduct = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
+
+  return c.json({
+    success: true,
+    message: "Generation cancelled successfully",
+    data: updatedProduct,
+  });
+});
+
+// Proxy 3D Model file to prevent CORS blocking from external CDNs (e.g. assets.meshy.ai)
+app.get("/proxy-model", async (c) => {
+  const url = c.req.query("url");
+  if (!url) {
+    return c.text("Missing url query param", 400);
+  }
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      return c.text(
+        `Failed to fetch 3D model: ${res.statusText}`,
+        (res.status >= 400 && res.status < 600 ? res.status : 500) as 400 | 404 | 500
+      );
+    }
+    const contentType = res.headers.get("content-type") || "model/gltf-binary";
+    const arrayBuffer = await res.arrayBuffer();
+
+    return new Response(arrayBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      },
+    });
+  } catch (err: unknown) {
+    return c.text(err instanceof Error ? err.message : "Failed to proxy model", 500);
   }
 });
 

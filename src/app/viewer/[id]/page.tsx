@@ -13,6 +13,7 @@ import {
   Heart,
   Store,
   ExternalLink,
+  XCircle,
 } from "lucide-react";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -38,6 +39,7 @@ function ViewerContent({ id }: { id: string }) {
   const [pollingProgress, setPollingProgress] = useState<number>(30);
   const [downloading, setDownloading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
 
@@ -106,13 +108,18 @@ function ViewerContent({ id }: { id: string }) {
       try {
         const res = await fetch(`/api/products/${id}/status`);
         const json = await res.json();
-        if (json.success) {
-          setPollingProgress(json.data.progress || 50);
+        if (json.success && json.data) {
+          if (typeof json.data.progress === "number" && json.data.progress > 0) {
+            setPollingProgress(json.data.progress);
+          }
 
           if (json.data.status === "completed" || json.data.status === "failed") {
+            if (json.data.status === "completed") {
+              setPollingProgress(100);
+            }
             const prodRes = await fetch(`/api/products/${id}`);
             const prodJson = await prodRes.json();
-            if (prodJson.success) {
+            if (prodJson.success && prodJson.data) {
               setProduct(prodJson.data);
             }
           }
@@ -139,7 +146,11 @@ function ViewerContent({ id }: { id: string }) {
       if (cached) {
         blob = cached.blob;
       } else {
-        const res = await fetch(modelUrl);
+        const downloadUrl =
+          modelUrl.startsWith("http://") || modelUrl.startsWith("https://")
+            ? `/api/proxy-model?url=${encodeURIComponent(modelUrl)}`
+            : modelUrl;
+        const res = await fetch(downloadUrl);
         blob = await res.blob();
         await saveGeneratedModelToIDB(product.id, blob, `${product.name}.glb`);
       }
@@ -185,6 +196,41 @@ function ViewerContent({ id }: { id: string }) {
     }
   };
 
+  // Cancel Generation Action
+  const handleCancelGeneration = async () => {
+    if (cancelling || !product) return;
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this 3D model generation? You can restart it or edit your details anytime."
+    );
+    if (!confirmed) return;
+
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/products/${id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resetToDraft: false }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (json.data) {
+          setProduct(json.data);
+        } else {
+          const prodRes = await fetch(`/api/products/${id}`);
+          const prodJson = await prodRes.json();
+          if (prodJson.success) setProduct(prodJson.data);
+        }
+      } else {
+        alert(json.error || "Failed to cancel generation");
+      }
+    } catch (err) {
+      console.error("Cancellation request failed:", err);
+      alert("Network error while attempting to cancel generation.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout title="3D Studio Viewer">
@@ -217,6 +263,7 @@ function ViewerContent({ id }: { id: string }) {
 
   const latestAttempt = product.generationAttempts[0];
   const modelUrl = latestAttempt?.modelUrl;
+  const isCancelled = latestAttempt?.errorCode === "CANCELLED_BY_USER";
 
   return (
     <DashboardLayout
@@ -255,10 +302,23 @@ function ViewerContent({ id }: { id: string }) {
               </Button>
             )}
 
-            {!isCustomer && (
+            {!isCustomer && product.status === "processing" && (
+              <Button
+                onClick={handleCancelGeneration}
+                disabled={cancelling}
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 text-xs font-medium"
+              >
+                <XCircle className={`h-4 w-4 ${cancelling ? "animate-spin" : "text-rose-600"}`} />
+                <span>{cancelling ? "Cancelling..." : "Cancel Generation"}</span>
+              </Button>
+            )}
+
+            {!isCustomer && product.status !== "processing" && (
               <Button
                 onClick={handleRetry}
-                disabled={retrying || product.status === "processing"}
+                disabled={retrying}
                 size="sm"
                 variant="outline"
                 className="gap-2"
@@ -290,13 +350,17 @@ function ViewerContent({ id }: { id: string }) {
                   </div>
                   <div>
                     <Badge variant="processing" className="text-xs font-semibold">
-                      Meshy AI Multi-Image Pipeline
+                      {product.generationMode === "image_to_3d" || product.images.length === 1
+                        ? "Meshy AI Image to 3D Pipeline"
+                        : "Meshy AI Multi-Image Pipeline"}
                     </Badge>
                     <h3 className="text-lg font-bold text-stone-900 mt-2">
                       Generating Textured 3D Model...
                     </h3>
                     <p className="text-xs text-stone-500 mt-1">
-                      Synthesizing 4 angle photographs into a 3D polygonal mesh with PBR textures and normal maps.
+                      {product.generationMode === "image_to_3d" || product.images.length === 1
+                        ? "Synthesizing photograph into a 3D polygonal mesh with PBR textures and normal maps."
+                        : "Synthesizing 4 angle photographs into a 3D polygonal mesh with PBR textures and normal maps."}
                     </p>
                   </div>
 
@@ -309,28 +373,69 @@ function ViewerContent({ id }: { id: string }) {
                   <p className="text-[11px] font-mono text-stone-400">
                     Task Status: IN_PROGRESS (~{pollingProgress}% completed)
                   </p>
+
+                  {/* Cancel Generation Option */}
+                  {!isCustomer && (
+                    <div className="pt-3 border-t border-amber-100 flex flex-col items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelGeneration}
+                        disabled={cancelling}
+                        className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-800 text-xs font-medium h-9 px-4 gap-1.5 shadow-2xs transition-colors"
+                      >
+                        <XCircle className={`h-4 w-4 ${cancelling ? "animate-spin" : "text-rose-600"}`} />
+                        <span>{cancelling ? "Cancelling..." : "Cancel Generation"}</span>
+                      </Button>
+                      <p className="text-[11px] text-stone-400">
+                        Stuck or submitted by mistake? Click to cancel and restart anytime.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Card>
             ) : product.status === "failed" ? (
-              <Card className="h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 border-rose-300">
+              <Card className={`h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 ${
+                isCancelled ? "border-stone-300" : "border-rose-300"
+              }`}>
                 <div className="max-w-md space-y-4">
-                  <div className="h-14 w-14 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
-                    <AlertTriangle className="h-7 w-7" />
+                  <div className={`h-14 w-14 rounded-2xl mx-auto flex items-center justify-center ${
+                    isCancelled ? "bg-stone-100 text-stone-600" : "bg-rose-50 text-rose-600"
+                  }`}>
+                    {isCancelled ? (
+                      <XCircle className="h-7 w-7 text-stone-600" />
+                    ) : (
+                      <AlertTriangle className="h-7 w-7" />
+                    )}
                   </div>
                   <div>
-                    <Badge variant="destructive">Generation Failed</Badge>
+                    <Badge variant={isCancelled ? "secondary" : "destructive"}>
+                      {isCancelled ? "Generation Cancelled" : "Generation Failed"}
+                    </Badge>
                     <h3 className="text-base font-bold text-stone-900 mt-2">
-                      Meshy AI generation encountered an issue
+                      {isCancelled
+                        ? "3D Generation was Cancelled"
+                        : "Meshy AI generation encountered an issue"}
                     </h3>
                     <p className="text-xs text-stone-500 mt-1">
                       {latestAttempt?.errorMessage ||
-                        "Unable to reconstruct 3D mesh from the supplied images. Ensure lighting is consistent."}
+                        (isCancelled
+                          ? "Generation was stopped. You can restart anytime or return to your products catalog."
+                          : "Unable to reconstruct 3D mesh from the supplied images. Ensure lighting is consistent.")}
                     </p>
                   </div>
-                  <Button onClick={handleRetry} disabled={retrying} className="gap-2">
-                    <RotateCcw className="h-4 w-4" />
-                    <span>Retry Generation</span>
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <Button onClick={handleRetry} disabled={retrying} className="gap-2 text-xs">
+                      <RotateCcw className="h-4 w-4" />
+                      <span>{isCancelled ? "Restart Generation" : "Retry Generation"}</span>
+                    </Button>
+                    <Link href="/products">
+                      <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        <span>Back to Products</span>
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </Card>
             ) : (
@@ -343,7 +448,7 @@ function ViewerContent({ id }: { id: string }) {
                     Ready to Generate 3D Model
                   </h3>
                   <p className="text-xs text-stone-500">
-                    All 4 angle views are uploaded. Initiate Meshy Multi-Image generation.
+                    All angle views are uploaded. Initiate Meshy AI 3D generation.
                   </p>
                   <Button onClick={handleRetry} disabled={retrying} className="gap-2">
                     <Sparkles className="h-4 w-4" />
