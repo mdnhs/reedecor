@@ -33,6 +33,10 @@ export class AuthService {
         name: "SaaS Admin (Superuser)",
         role: "saas_admin" as UserRole,
         password: "admin123",
+        business_name: "Artisan Living SaaS",
+        whatsapp_number: "01865818044",
+        location: "Gulshan-2, Dhaka",
+        bio: "SaaS platform administrator for Artisan Living Studio.",
       },
       {
         id: "user-merchant",
@@ -40,6 +44,21 @@ export class AuthService {
         name: "Luxury Oak Merchant",
         role: "merchant" as UserRole,
         password: "merchant123",
+        business_name: "Artisan Living Dhaka",
+        whatsapp_number: "01865818044",
+        location: "Gulshan-2, Dhaka",
+        bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
+      },
+      {
+        id: "demo-merchant-001",
+        email: "demo@artisanfurniture.studio",
+        name: "Artisan Living Studio",
+        role: "merchant" as UserRole,
+        password: "merchant123",
+        business_name: "Artisan Living Dhaka",
+        whatsapp_number: "01865818044",
+        location: "Gulshan-2, Dhaka",
+        bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
       },
       {
         id: "user-customer",
@@ -47,6 +66,10 @@ export class AuthService {
         name: "Sophia Rahman (Customer)",
         role: "customer" as UserRole,
         password: "customer123",
+        business_name: "",
+        whatsapp_number: "+8801712345678",
+        location: "Dhanmondi, Dhaka",
+        bio: "Interior design enthusiast and customer.",
       },
     ];
 
@@ -54,7 +77,7 @@ export class AuthService {
       const { data: existing } = await this.client
         .from("app_users")
         .select("id")
-        .eq("email", seed.email)
+        .or(`id.eq.${seed.id},email.eq.${seed.email}`)
         .maybeSingle();
 
       if (!existing) {
@@ -66,6 +89,10 @@ export class AuthService {
           role: seed.role,
           status: "active",
           password_hash: passwordHash,
+          business_name: seed.business_name,
+          whatsapp_number: seed.whatsapp_number,
+          location: seed.location,
+          bio: seed.bio,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

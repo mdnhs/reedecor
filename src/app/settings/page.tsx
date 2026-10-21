@@ -29,11 +29,13 @@ import Link from "next/link";
 import { useOrigin } from "@/lib/hooks/use-origin";
 
 export default function SettingsPage() {
-  const { user, role, isSaasAdmin } = useAuth();
+  const { user, role, isSaasAdmin, refreshUser } = useAuth();
   const origin = useOrigin();
 
   // Merchant Profile State
   const [businessName, setBusinessName] = useState("Artisan Living Studio");
+  const [contactName, setContactName] = useState("Luxury Oak Merchant");
+  const [contactEmail, setContactEmail] = useState("merchant@artisanstudio.com");
   const [whatsappNumber, setWhatsappNumber] = useState("01865818044");
   const [location, setLocation] = useState("Gulshan-2, Dhaka, Bangladesh");
   const [bio, setBio] = useState(
@@ -41,6 +43,7 @@ export default function SettingsPage() {
   );
   const [savingMerchant, setSavingMerchant] = useState(false);
   const [merchantSavedSuccess, setMerchantSavedSuccess] = useState(false);
+  const [merchantError, setMerchantError] = useState<string | null>(null);
   const [copiedStoreLink, setCopiedStoreLink] = useState(false);
 
   // SaaS Admin Platform Settings (Stored in Supabase DB)
@@ -64,10 +67,12 @@ export default function SettingsPage() {
     let ignore = false;
     async function loadProfile() {
       try {
-        const res = await fetch(`/api/merchants/${merchantStoreId}/public`);
+        const res = await fetch("/api/merchants/profile");
         const json = await res.json();
         if (!ignore && json.success && json.data) {
           if (json.data.businessName) setBusinessName(json.data.businessName);
+          if (json.data.name) setContactName(json.data.name);
+          if (json.data.email) setContactEmail(json.data.email);
           if (json.data.whatsappNumber) setWhatsappNumber(json.data.whatsappNumber);
           if (json.data.location) setLocation(json.data.location);
           if (json.data.bio) setBio(json.data.bio);
@@ -118,25 +123,32 @@ export default function SettingsPage() {
     e.preventDefault();
     setSavingMerchant(true);
     setMerchantSavedSuccess(false);
+    setMerchantError(null);
 
     try {
       const res = await fetch("/api/merchants/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: contactName,
           businessName,
           whatsappNumber,
           location,
           bio,
+          email: contactEmail,
         }),
       });
       const json = await res.json();
       if (json.success) {
         setMerchantSavedSuccess(true);
-        setTimeout(() => setMerchantSavedSuccess(false), 3000);
+        if (refreshUser) refreshUser();
+        setTimeout(() => setMerchantSavedSuccess(false), 3500);
+      } else {
+        setMerchantError(json.error || "Failed to update merchant settings.");
       }
     } catch (err) {
       console.error("Error saving merchant profile:", err);
+      setMerchantError("Failed to update merchant settings. Please check connection.");
     } finally {
       setSavingMerchant(false);
     }
@@ -481,6 +493,12 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {merchantError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                  <span className="font-semibold">Error:</span> {merchantError}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-stone-700">Business / Studio Name</label>
@@ -495,12 +513,26 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-stone-700">Owner / Representative Name</label>
+                  <Input
+                    type="text"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="e.g. Luxury Oak Merchant"
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-stone-700 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
                       Merchant WhatsApp Number
                     </span>
-                    <span className="text-[10px] text-stone-400 font-normal">With country code</span>
+                    <span className="text-[10px] text-stone-400 font-normal">For direct customer orders</span>
                   </label>
                   <Input
                     type="text"
@@ -512,6 +544,21 @@ export default function SettingsPage() {
                   />
                   <p className="text-[11px] text-stone-500">
                     Customers clicking &ldquo;Order on WhatsApp&rdquo; will send specific product name, price, and 3D link directly to this number.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-stone-700">Business / Contact Email</label>
+                  <Input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="e.g. merchant@artisanstudio.com"
+                    className="h-9 text-xs"
+                    required
+                  />
+                  <p className="text-[11px] text-stone-500">
+                    Official email displayed on invoices and merchant communications.
                   </p>
                 </div>
               </div>

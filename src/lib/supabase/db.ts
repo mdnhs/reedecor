@@ -270,11 +270,27 @@ export class SupabaseDbService {
 
     try {
       // Find merchant user by id or email or fallback to demo
-      const { data: user } = await this.client
+      const queryResult = await this.client
         .from("app_users")
-        .select("id, name, email, role, business_name, bio, whatsapp_number, location, avatar_url")
+        .select("id, name, email, role, business_name, bio, whatsapp_number, location")
         .or(`id.eq.${merchantIdentifier},email.eq.${merchantIdentifier}`)
         .maybeSingle();
+
+      let user = queryResult.data;
+      if (queryResult.error) {
+        console.error("Error querying app_users for merchant:", queryResult.error);
+      }
+
+      // If querying demo-merchant-001 and not found, check user-merchant (or vice versa)
+      if (!user && (merchantIdentifier === "demo-merchant-001" || merchantIdentifier === "user-merchant")) {
+        const altId = merchantIdentifier === "demo-merchant-001" ? "user-merchant" : "demo-merchant-001";
+        const { data: altUser } = await this.client
+          .from("app_users")
+          .select("id, name, email, role, business_name, bio, whatsapp_number, location")
+          .eq("id", altId)
+          .maybeSingle();
+        if (altUser) user = altUser;
+      }
 
       const merchantUser = user || {
         id: merchantIdentifier,
@@ -285,7 +301,6 @@ export class SupabaseDbService {
         bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
         whatsapp_number: "01865818044",
         location: "Gulshan-2, Dhaka",
-        avatar_url: null,
       };
 
       // Count followers
@@ -297,7 +312,11 @@ export class SupabaseDbService {
       // Get all products (or products for this merchant)
       const allProducts = await this.getAllProducts();
       const merchantProducts = allProducts.filter(
-        (p) => p.merchantId === merchantUser.id || p.merchantId === "demo-merchant-001" || merchantUser.role === "saas_admin"
+        (p) =>
+          p.merchantId === merchantUser.id ||
+          p.merchantId === "demo-merchant-001" ||
+          p.merchantId === "user-merchant" ||
+          merchantUser.role === "saas_admin"
       );
 
       return {
@@ -307,7 +326,8 @@ export class SupabaseDbService {
         bio: merchantUser.bio || "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
         whatsappNumber: merchantUser.whatsapp_number || "01865818044",
         location: merchantUser.location || "Gulshan-2, Dhaka",
-        avatarUrl: merchantUser.avatar_url || null,
+        email: merchantUser.email || "merchant@artisanstudio.com",
+        avatarUrl: null,
         followerCount: (count || 0) + 128, // base community count
         products: merchantProducts.length > 0 ? merchantProducts : allProducts,
       };
@@ -319,7 +339,14 @@ export class SupabaseDbService {
 
   async updateMerchantProfile(
     merchantId: string,
-    data: { businessName?: string; bio?: string; whatsappNumber?: string; location?: string; name?: string }
+    data: {
+      businessName?: string;
+      bio?: string;
+      whatsappNumber?: string;
+      location?: string;
+      name?: string;
+      email?: string;
+    }
   ) {
     if (!this.client) return { success: true };
     const updates: Record<string, unknown> = {};
@@ -328,6 +355,39 @@ export class SupabaseDbService {
     if (data.whatsappNumber !== undefined) updates.whatsapp_number = data.whatsappNumber;
     if (data.location !== undefined) updates.location = data.location;
     if (data.name !== undefined) updates.name = data.name;
+    if (data.email !== undefined) updates.email = data.email;
+    updates.updated_at = new Date().toISOString();
+
+    if (merchantId === "demo-merchant-001" || merchantId === "user-merchant") {
+      // Upsert demo-merchant-001 with required password_hash
+      const { error: upsertErr } = await this.client.from("app_users").upsert(
+        {
+          id: "demo-merchant-001",
+          email: data.email || "demo@artisanfurniture.studio",
+          password_hash: "demo_hash",
+          name: data.name || "Artisan Living Studio",
+          role: "merchant",
+          status: "active",
+          ...updates,
+        },
+        { onConflict: "id" }
+      );
+
+      if (upsertErr) console.error("Error upserting demo-merchant-001:", upsertErr);
+
+      // Also update user-merchant with business profile fields (omitting email to avoid unique constraint collisions)
+      const userMerchantUpdates = { ...updates };
+      delete userMerchantUpdates.email;
+
+      const { error: updateErr } = await this.client
+        .from("app_users")
+        .update(userMerchantUpdates)
+        .eq("id", "user-merchant");
+
+      if (updateErr) console.error("Error updating user-merchant:", updateErr);
+
+      return { success: !upsertErr };
+    }
 
     const { error } = await this.client.from("app_users").update(updates).eq("id", merchantId);
     if (error) console.error("Error updating merchant profile:", error);

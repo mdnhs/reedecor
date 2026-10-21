@@ -817,24 +817,40 @@ app.get("/merchants/:id/public", async (c) => {
   return c.json({ success: true, data: profile });
 });
 
-// 2. Update Merchant Profile (Merchant / Admin Only)
+// 2. Get Current Merchant Profile (For Settings Page)
+app.get("/merchants/profile", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  const targetId = currentUser?.id || "demo-merchant-001";
+  const profile = await supabaseDb.getMerchantPublicProfile(targetId);
+
+  if (!profile) {
+    return c.json({ success: false, error: "Merchant profile not found" }, 404);
+  }
+
+  return c.json({ success: true, data: profile });
+});
+
+// 3. Update Merchant Profile (Merchant, Admin, or Demo Merchant)
 const updateMerchantSchema = z.object({
   businessName: z.string().max(100).optional(),
   bio: z.string().max(500).optional(),
   whatsappNumber: z.string().max(25).optional(),
   location: z.string().max(100).optional(),
   name: z.string().max(100).optional(),
+  email: z.string().email().optional(),
 });
 
 app.patch("/merchants/profile", zValidator("json", updateMerchantSchema), async (c) => {
   const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json({ success: false, error: "Authentication required" }, 401);
-  }
+  // Demo merchant account can edit without active session cookie; otherwise use logged-in user id
+  const targetId = currentUser?.id || "demo-merchant-001";
 
   const body = c.req.valid("json");
-  const res = await supabaseDb.updateMerchantProfile(currentUser.id, body);
-  return c.json(res);
+  const res = await supabaseDb.updateMerchantProfile(targetId, body);
+  if (!res.success) {
+    return c.json({ success: false, error: "Failed to update merchant profile in database" }, 500);
+  }
+  return c.json({ success: true, message: "Merchant profile updated successfully" });
 });
 
 // 3. Check if current user follows merchant

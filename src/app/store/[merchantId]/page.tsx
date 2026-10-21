@@ -35,6 +35,7 @@ interface MerchantProfileData {
   bio: string;
   whatsappNumber: string;
   location: string;
+  email?: string;
   avatarUrl?: string | null;
   followerCount: number;
   products: StoredProduct[];
@@ -304,6 +305,9 @@ export default function PublicStorefrontPage({
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
                     {profile.businessName}
                   </h1>
+                  {profile.name && profile.name !== profile.businessName && (
+                    <span className="text-xs text-stone-500 font-medium">by {profile.name}</span>
+                  )}
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-medium">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                     Verified Artisan Merchant
