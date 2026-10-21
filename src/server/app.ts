@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { inMemoryStore, StoredProduct } from "./demo-store";
+import { supabaseDb } from "@/lib/supabase/db";
 import { meshyClient } from "@/lib/meshy/client";
 import { storageService } from "@/lib/storage/supabase-storage";
-import { DEMO_MERCHANT } from "@/lib/auth/auth";
+import { DEMO_MERCHANT } from "@/lib/constants";
 
 export const app = new Hono().basePath("/api");
 
@@ -57,12 +58,13 @@ const createProductSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Endpoints
+// Endpoints (Powered by Supabase SDK)
 // ---------------------------------------------------------------------------
 
 // 1. List Products
 app.get("/products", async (c) => {
-  const products = inMemoryStore.getAll();
+  const dbProducts = await supabaseDb.getAllProducts();
+  const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
   return c.json({
     success: true,
     data: products,
@@ -72,7 +74,7 @@ app.get("/products", async (c) => {
 // 2. Get Product By ID
 app.get("/products/:id", async (c) => {
   const id = c.req.param("id");
-  const product = inMemoryStore.getById(id);
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
@@ -108,6 +110,7 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
     generationAttempts: [],
   };
 
+  await supabaseDb.createProduct(newProduct);
   inMemoryStore.add(newProduct);
 
   return c.json({ success: true, data: newProduct }, 201);
@@ -116,13 +119,14 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
 // 4. Delete Product
 app.delete("/products/:id", async (c) => {
   const id = c.req.param("id");
-  const product = inMemoryStore.getById(id);
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
 
-  // Delete assets from storage
+  // Delete assets from Supabase storage
   await storageService.deleteProductAssets(id);
+  await supabaseDb.deleteProduct(id);
   inMemoryStore.delete(id);
 
   return c.json({ success: true, message: "Product deleted successfully" });
@@ -131,7 +135,7 @@ app.delete("/products/:id", async (c) => {
 // 5. Start Generation (Meshy AI Multi-Image)
 app.post("/products/:id/generate", async (c) => {
   const id = c.req.param("id");
-  const product = inMemoryStore.getById(id);
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
@@ -143,7 +147,6 @@ app.post("/products/:id/generate", async (c) => {
     );
   }
 
-  // Sort images in primary order: Front, Back, Left, Right
   const viewOrder = ["front", "back", "left", "right"];
   const orderedImages = [...product.images].sort(
     (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
@@ -175,6 +178,9 @@ app.post("/products/:id/generate", async (c) => {
       completedAt: null,
     };
 
+    await supabaseDb.addGenerationAttempt(id, newAttempt);
+    await supabaseDb.updateProductStatus(id, "processing");
+
     inMemoryStore.update(id, (p) => ({
       ...p,
       status: "processing",
@@ -205,6 +211,9 @@ app.post("/products/:id/generate", async (c) => {
       completedAt: new Date().toISOString(),
     };
 
+    await supabaseDb.addGenerationAttempt(id, failedAttempt);
+    await supabaseDb.updateProductStatus(id, "failed");
+
     inMemoryStore.update(id, (p) => ({
       ...p,
       status: "failed",
@@ -219,7 +228,7 @@ app.post("/products/:id/generate", async (c) => {
 // 6. Check Generation Status
 app.get("/products/:id/status", async (c) => {
   const id = c.req.param("id");
-  const product = inMemoryStore.getById(id);
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
@@ -232,7 +241,6 @@ app.get("/products/:id/status", async (c) => {
     });
   }
 
-  // If already terminal state, return directly
   if (latestAttempt.status === "completed" || latestAttempt.status === "failed") {
     return c.json({
       success: true,
@@ -245,13 +253,20 @@ app.get("/products/:id/status", async (c) => {
     });
   }
 
-  // Poll provider
   if (latestAttempt.providerTaskId) {
     try {
       const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId);
 
       if (task.status === "SUCCEEDED" && task.model_urls?.glb) {
         const modelUrl = task.model_urls.glb;
+
+        await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
+          status: "completed",
+          modelUrl,
+          completedAt: new Date().toISOString(),
+        });
+        await supabaseDb.updateProductStatus(id, "completed");
+
         inMemoryStore.update(id, (p) => {
           const updatedAttempts = [...p.generationAttempts];
           updatedAttempts[0] = {
@@ -278,6 +293,15 @@ app.get("/products/:id/status", async (c) => {
         });
       } else if (task.status === "FAILED") {
         const errorMsg = task.task_error?.message || "Meshy generation failed";
+
+        await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
+          status: "failed",
+          errorMessage: errorMsg,
+          errorCode: "PROVIDER_FAILED",
+          completedAt: new Date().toISOString(),
+        });
+        await supabaseDb.updateProductStatus(id, "failed");
+
         inMemoryStore.update(id, (p) => {
           const updatedAttempts = [...p.generationAttempts];
           updatedAttempts[0] = {
@@ -333,7 +357,7 @@ app.get("/products/:id/status", async (c) => {
 // 7. Retry Generation
 app.post("/products/:id/retry", async (c) => {
   const id = c.req.param("id");
-  const product = inMemoryStore.getById(id);
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
@@ -369,6 +393,9 @@ app.post("/products/:id/retry", async (c) => {
       completedAt: null,
     };
 
+    await supabaseDb.addGenerationAttempt(id, newAttempt);
+    await supabaseDb.updateProductStatus(id, "processing");
+
     inMemoryStore.update(id, (p) => ({
       ...p,
       status: "processing",
@@ -397,7 +424,8 @@ app.post("/products/:id/retry", async (c) => {
 
 // 8. Credits & Usage Analytics
 app.get("/credits/usage", async (c) => {
-  const products = inMemoryStore.getAll();
+  const dbProducts = await supabaseDb.getAllProducts();
+  const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
   const allAttempts = products.flatMap((p) => p.generationAttempts);
 
   const totalAttempts = allAttempts.length;
