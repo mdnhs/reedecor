@@ -24,10 +24,10 @@ export interface WhatsAppProductContext {
 }
 
 export function buildProductWhatsAppUrl(
-  rawNumber: string = "+8801712345678",
+  rawNumber: string = "01865818044",
   product: WhatsAppProductContext
 ): string {
-  const cleanNumber = cleanWhatsAppNumber(rawNumber || "+8801712345678");
+  const cleanNumber = cleanWhatsAppNumber(rawNumber || "01865818044");
 
   const priceText = product.priceBdt ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "Negotiable / On Request";
   const dimensionText =

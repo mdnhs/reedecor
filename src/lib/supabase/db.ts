@@ -261,7 +261,7 @@ export class SupabaseDbService {
         name: "Artisan Woodworks Dhaka",
         businessName: "Artisan Woodworks Studio",
         bio: "Bespoke handcrafted Scandinavian & modern teak/oak furniture crafted in Dhaka. Custom dimensions available.",
-        whatsappNumber: "+8801712345678",
+        whatsappNumber: "01865818044",
         location: "Gulshan-2, Dhaka, Bangladesh",
         followerCount: 142,
         products: initialProducts,
@@ -283,7 +283,7 @@ export class SupabaseDbService {
         role: "merchant",
         business_name: "Artisan Living Dhaka",
         bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
-        whatsapp_number: "+8801712345678",
+        whatsapp_number: "01865818044",
         location: "Gulshan-2, Dhaka",
         avatar_url: null,
       };
@@ -305,7 +305,7 @@ export class SupabaseDbService {
         name: merchantUser.name || "Artisan Living Studio",
         businessName: merchantUser.business_name || "Artisan Living Dhaka",
         bio: merchantUser.bio || "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
-        whatsappNumber: merchantUser.whatsapp_number || "+8801712345678",
+        whatsappNumber: merchantUser.whatsapp_number || "01865818044",
         location: merchantUser.location || "Gulshan-2, Dhaka",
         avatarUrl: merchantUser.avatar_url || null,
         followerCount: (count || 0) + 128, // base community count

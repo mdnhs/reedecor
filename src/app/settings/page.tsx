@@ -32,7 +32,7 @@ export default function SettingsPage() {
 
   // Merchant Profile State
   const [businessName, setBusinessName] = useState("Artisan Living Studio");
-  const [whatsappNumber, setWhatsappNumber] = useState("+8801712345678");
+  const [whatsappNumber, setWhatsappNumber] = useState("01865818044");
   const [location, setLocation] = useState("Gulshan-2, Dhaka, Bangladesh");
   const [bio, setBio] = useState(
     "Luxury architectural handcrafted 3D custom furniture. Made to order with premium Burmese teak and seasoned oak."
@@ -504,7 +504,7 @@ export default function SettingsPage() {
                     type="text"
                     value={whatsappNumber}
                     onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="e.g. +8801712345678"
+                    placeholder="e.g. 01865818044"
                     className="h-9 text-xs font-mono"
                     required
                   />

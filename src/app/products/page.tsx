@@ -268,7 +268,7 @@ export default function MyProductsPage() {
                   ? `${window.location.origin}/viewer/${product.id}`
                   : `/viewer/${product.id}`;
 
-              const waUrl = buildProductWhatsAppUrl("+8801712345678", {
+              const waUrl = buildProductWhatsAppUrl("01865818044", {
                 id: product.id,
                 name: product.name,
                 category: product.category,

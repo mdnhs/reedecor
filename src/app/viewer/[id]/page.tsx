@@ -434,7 +434,7 @@ function ViewerContent({ id }: { id: string }) {
               </p>
               <div className="flex items-center gap-2">
                 <a
-                  href={buildProductWhatsAppUrl("+8801712345678", {
+                  href={buildProductWhatsAppUrl("01865818044", {
                     id: product.id,
                     name: product.name,
                     category: product.category,
