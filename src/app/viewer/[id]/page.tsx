@@ -23,11 +23,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ModelViewer } from "@/components/studio/model-viewer";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
-import { saveGeneratedModelToIDB, getGeneratedModelFromIDB } from "@/lib/storage/indexeddb-storage";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useOrigin } from "@/lib/hooks/use-origin";
+import {
+  saveGeneratedModelToIDB,
+  getGeneratedModelFromIDB,
+} from "@/lib/storage/indexeddb-storage";
 
 function ViewerContent({ id }: { id: string }) {
   const { user, isCustomer } = useAuth();
+  const origin = useOrigin();
   const [product, setProduct] = useState<StoredProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [pollingProgress, setPollingProgress] = useState<number>(30);
@@ -442,7 +447,7 @@ function ViewerContent({ id }: { id: string }) {
                     widthMm: product.widthMm,
                     depthMm: product.depthMm,
                     heightMm: product.heightMm,
-                    storeUrl: typeof window !== "undefined" ? window.location.href : undefined,
+                    storeUrl: origin ? `${origin}/viewer/${product.id}` : undefined,
                   })}
                   target="_blank"
                   rel="noopener noreferrer"

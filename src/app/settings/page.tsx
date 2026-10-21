@@ -26,9 +26,11 @@ import {
   DollarSign,
 } from "lucide-react";
 import Link from "next/link";
+import { useOrigin } from "@/lib/hooks/use-origin";
 
 export default function SettingsPage() {
   const { user, role, isSaasAdmin } = useAuth();
+  const origin = useOrigin();
 
   // Merchant Profile State
   const [businessName, setBusinessName] = useState("Artisan Living Studio");
@@ -55,10 +57,7 @@ export default function SettingsPage() {
   const [adminSettingsSaved, setAdminSettingsSaved] = useState(false);
 
   const merchantStoreId = user?.id || "demo-merchant-001";
-  const storeUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/store/${merchantStoreId}`
-      : `/store/${merchantStoreId}`;
+  const storeUrl = origin ? `${origin}/store/${merchantStoreId}` : `/store/${merchantStoreId}`;
 
   // Fetch current merchant info
   useEffect(() => {
@@ -473,7 +472,10 @@ export default function SettingsPage() {
                 <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold">Public Shareable Link:</p>
-                  <p className="font-mono text-[11px] text-amber-800 break-all select-all mt-0.5">
+                  <p
+                    suppressHydrationWarning
+                    className="font-mono text-[11px] text-amber-800 break-all select-all mt-0.5"
+                  >
                     {storeUrl}
                   </p>
                 </div>

@@ -23,9 +23,11 @@ import { StoredProduct } from "@/server/demo-store";
 import { formatDimension, cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
+import { useOrigin } from "@/lib/hooks/use-origin";
 
 export default function MyProductsPage() {
   const { user, isCustomer } = useAuth();
+  const origin = useOrigin();
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -263,10 +265,9 @@ export default function MyProductsPage() {
               const isWishlisted = wishlistIds.has(product.id);
               const price = product.priceBdt || 18500;
 
-              const currentUrl =
-                typeof window !== "undefined"
-                  ? `${window.location.origin}/viewer/${product.id}`
-                  : `/viewer/${product.id}`;
+              const currentUrl = origin
+                ? `${origin}/viewer/${product.id}`
+                : `/viewer/${product.id}`;
 
               const waUrl = buildProductWhatsAppUrl("01865818044", {
                 id: product.id,

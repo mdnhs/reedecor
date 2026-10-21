@@ -26,6 +26,7 @@ import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl, cleanWhatsAppNumber } from "@/lib/whatsapp";
+import { useOrigin } from "@/lib/hooks/use-origin";
 
 interface MerchantProfileData {
   id: string;
@@ -48,6 +49,7 @@ export default function PublicStorefrontPage({
   const merchantId = resolvedParams.merchantId;
 
   const { user } = useAuth();
+  const origin = useOrigin();
   const [profile, setProfile] = useState<MerchantProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -436,10 +438,9 @@ export default function PublicStorefrontPage({
                   prod.generationAttempts?.some((a) => a.status === "completed" && a.modelUrl);
 
                 // Specific WhatsApp Direct Order Link for this product
-                const currentUrl =
-                  typeof window !== "undefined"
-                    ? `${window.location.origin}/viewer/${prod.id}`
-                    : `/viewer/${prod.id}`;
+                const currentUrl = origin
+                  ? `${origin}/viewer/${prod.id}`
+                  : `/viewer/${prod.id}`;
 
                 const productWaUrl = buildProductWhatsAppUrl(profile.whatsappNumber, {
                   id: prod.id,
