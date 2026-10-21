@@ -406,7 +406,103 @@ export class SupabaseDbService {
       return { inWishlist: true };
     }
   }
+
+  // --- Platform System Settings (Stored in DB) ---
+  async getSystemSettings(): Promise<SystemSettings> {
+    const fallback: SystemSettings = {
+      id: "default",
+      meshyApiKey: process.env.MESHY_API_KEY || "your_meshy_api_key_here",
+      meshyApiBaseUrl: process.env.MESHY_API_BASE_URL || "https://api.meshy.ai",
+      meshyModel: process.env.MESHY_MODEL || "meshy-7.1",
+      meshyGeometryResolution: process.env.MESHY_GEOMETRY_RESOLUTION || "standard",
+      meshyTextureResolution: process.env.MESHY_TEXTURE_RESOLUTION || "2k",
+      meshyCreditsPerGeneration: Number(process.env.MESHY_CREDITS_PER_GENERATION || "20"),
+      usdToBdtRate: Number(process.env.USD_TO_BDT_RATE || "122.50"),
+      costPerCreditUsd: Number(process.env.COST_PER_CREDIT_USD || "0.05"),
+    };
+
+    if (!this.client) return fallback;
+
+    try {
+      const { data, error } = await this.client
+        .from("system_settings")
+        .select("*")
+        .eq("id", "default")
+        .maybeSingle();
+
+      if (error || !data) return fallback;
+
+      return {
+        id: data.id,
+        meshyApiKey: data.meshy_api_key || fallback.meshyApiKey,
+        meshyApiBaseUrl: data.meshy_api_base_url || fallback.meshyApiBaseUrl,
+        meshyModel: data.meshy_model || fallback.meshyModel,
+        meshyGeometryResolution: data.meshy_geometry_resolution || fallback.meshyGeometryResolution,
+        meshyTextureResolution: data.meshy_texture_resolution || fallback.meshyTextureResolution,
+        meshyCreditsPerGeneration: Number(data.meshy_credits_per_generation || 20),
+        usdToBdtRate: Number(data.usd_to_bdt_rate || 122.50),
+        costPerCreditUsd: Number(data.cost_per_credit_usd || 0.05),
+        updatedAt: data.updated_at,
+      };
+    } catch (err) {
+      console.error("Error reading system settings from DB:", err);
+      return fallback;
+    }
+  }
+
+  async updateSystemSettings(
+    updates: Partial<SystemSettings>
+  ): Promise<{ success: boolean; data?: SystemSettings }> {
+    const dbPayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.meshyApiKey !== undefined) dbPayload.meshy_api_key = updates.meshyApiKey;
+    if (updates.meshyApiBaseUrl !== undefined) dbPayload.meshy_api_base_url = updates.meshyApiBaseUrl;
+    if (updates.meshyModel !== undefined) dbPayload.meshy_model = updates.meshyModel;
+    if (updates.meshyGeometryResolution !== undefined)
+      dbPayload.meshy_geometry_resolution = updates.meshyGeometryResolution;
+    if (updates.meshyTextureResolution !== undefined)
+      dbPayload.meshy_texture_resolution = updates.meshyTextureResolution;
+    if (updates.meshyCreditsPerGeneration !== undefined)
+      dbPayload.meshy_credits_per_generation = updates.meshyCreditsPerGeneration;
+    if (updates.usdToBdtRate !== undefined) dbPayload.usd_to_bdt_rate = updates.usdToBdtRate;
+    if (updates.costPerCreditUsd !== undefined) dbPayload.cost_per_credit_usd = updates.costPerCreditUsd;
+
+    if (!this.client) return { success: true };
+
+    try {
+      const { error } = await this.client
+        .from("system_settings")
+        .upsert({ id: "default", ...dbPayload }, { onConflict: "id" });
+
+      if (error) {
+        console.error("Failed to update system settings in DB:", error);
+        return { success: false };
+      }
+
+      const fresh = await this.getSystemSettings();
+      return { success: true, data: fresh };
+    } catch (err) {
+      console.error("Error updating system settings:", err);
+      return { success: false };
+    }
+  }
+}
+
+export interface SystemSettings {
+  id: string;
+  meshyApiKey: string;
+  meshyApiBaseUrl: string;
+  meshyModel: string;
+  meshyGeometryResolution: string;
+  meshyTextureResolution: string;
+  meshyCreditsPerGeneration: number;
+  usdToBdtRate: number;
+  costPerCreditUsd: number;
+  updatedAt?: string;
 }
 
 export const supabaseDb = new SupabaseDbService();
+
 

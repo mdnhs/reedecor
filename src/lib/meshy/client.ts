@@ -16,6 +16,11 @@ export class MeshyClient {
     return Boolean(this.apiKey && this.apiKey !== "your_meshy_api_key_here");
   }
 
+  updateConfig(apiKey?: string, baseUrl?: string) {
+    if (apiKey !== undefined) this.apiKey = apiKey;
+    if (baseUrl !== undefined) this.baseUrl = baseUrl;
+  }
+
   async createMultiImageTask(params: {
     imageUrls: string[];
     shouldTexture?: boolean;

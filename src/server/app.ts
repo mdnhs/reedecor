@@ -433,15 +433,17 @@ app.post("/products/:id/generate", async (c) => {
   const imageUrls = orderedImages.map((img) => img.publicUrl);
 
   const attemptId = `gen-${Date.now()}`;
-  const creditEstimate = Number(process.env.MESHY_CREDITS_PER_GENERATION || "20");
+  const settings = await supabaseDb.getSystemSettings();
+  meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
+  const creditEstimate = settings.meshyCreditsPerGeneration;
 
   try {
     const { taskId } = await meshyClient.createMultiImageTask({
       imageUrls,
       shouldTexture: true,
-      textureResolution: "2k",
+      textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
       enablePbr: true,
-      modelType: "standard",
+      modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
     });
 
     const newAttempt = {
@@ -656,15 +658,17 @@ app.post("/products/:id/retry", async (c) => {
   const imageUrls = orderedImages.map((img) => img.publicUrl);
 
   const attemptId = `gen-retry-${Date.now()}`;
-  const creditEstimate = Number(process.env.MESHY_CREDITS_PER_GENERATION || "20");
+  const settings = await supabaseDb.getSystemSettings();
+  meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
+  const creditEstimate = settings.meshyCreditsPerGeneration;
 
   try {
     const { taskId } = await meshyClient.createMultiImageTask({
       imageUrls,
       shouldTexture: true,
-      textureResolution: "2k",
+      textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
       enablePbr: true,
-      modelType: "standard",
+      modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
     });
 
     const newAttempt = {
@@ -728,9 +732,10 @@ app.get("/credits/usage", async (c) => {
   const failedAttempts = allAttempts.filter((a) => a.status === "failed").length;
   const processingAttempts = allAttempts.filter((a) => a.status === "processing").length;
 
-  const creditsPerGen = Number(process.env.MESHY_CREDITS_PER_GENERATION || "20");
-  const costPerCreditUSD = Number(process.env.COST_PER_CREDIT_USD || "0.05");
-  const usdToBdtRate = Number(process.env.USD_TO_BDT_RATE || "122.5");
+  const settings = await supabaseDb.getSystemSettings();
+  const creditsPerGen = settings.meshyCreditsPerGeneration;
+  const costPerCreditUSD = settings.costPerCreditUsd;
+  const usdToBdtRate = settings.usdToBdtRate;
 
   const totalCreditsUsed = completedAttempts * creditsPerGen;
   const totalCostUSD = totalCreditsUsed * costPerCreditUSD;
@@ -752,6 +757,48 @@ app.get("/credits/usage", async (c) => {
       history: allAttempts.slice(0, 20),
     },
   });
+});
+
+// ---------------------------------------------------------------------------
+// SaaS Admin System Settings Endpoints (Stored in DB)
+// ---------------------------------------------------------------------------
+
+// 1. Get System Settings (Admin only)
+app.get("/admin/settings", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json({ success: false, error: "Access denied. SaaS Admin role required." }, 403);
+  }
+
+  const settings = await supabaseDb.getSystemSettings();
+  return c.json({ success: true, data: settings });
+});
+
+// 2. Update System Settings (Admin only)
+const updateSystemSettingsSchema = z.object({
+  meshyApiKey: z.string().optional(),
+  meshyApiBaseUrl: z.string().optional(),
+  meshyModel: z.string().optional(),
+  meshyGeometryResolution: z.string().optional(),
+  meshyTextureResolution: z.string().optional(),
+  meshyCreditsPerGeneration: z.number().int().positive().optional(),
+  usdToBdtRate: z.number().positive().optional(),
+  costPerCreditUsd: z.number().positive().optional(),
+});
+
+app.patch("/admin/settings", zValidator("json", updateSystemSettingsSchema), async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json({ success: false, error: "Access denied. SaaS Admin role required." }, 403);
+  }
+
+  const body = c.req.valid("json");
+  const res = await supabaseDb.updateSystemSettings(body);
+  if (res.success && res.data) {
+    meshyClient.updateConfig(res.data.meshyApiKey, res.data.meshyApiBaseUrl);
+  }
+
+  return c.json(res);
 });
 
 // ---------------------------------------------------------------------------

@@ -20,21 +20,39 @@ import {
   Check,
   Store,
   Sparkles,
+  Eye,
+  EyeOff,
+  Sliders,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 
 export default function SettingsPage() {
   const { user, role, isSaasAdmin } = useAuth();
 
+  // Merchant Profile State
   const [businessName, setBusinessName] = useState("Artisan Living Studio");
   const [whatsappNumber, setWhatsappNumber] = useState("+8801712345678");
   const [location, setLocation] = useState("Gulshan-2, Dhaka, Bangladesh");
   const [bio, setBio] = useState(
     "Luxury architectural handcrafted 3D custom furniture. Made to order with premium Burmese teak and seasoned oak."
   );
-  const [saving, setSaving] = useState(false);
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [savingMerchant, setSavingMerchant] = useState(false);
+  const [merchantSavedSuccess, setMerchantSavedSuccess] = useState(false);
   const [copiedStoreLink, setCopiedStoreLink] = useState(false);
+
+  // SaaS Admin Platform Settings (Stored in Supabase DB)
+  const [meshyApiKey, setMeshyApiKey] = useState("your_meshy_api_key_here");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [meshyApiBaseUrl, setMeshyApiBaseUrl] = useState("https://api.meshy.ai");
+  const [meshyModel, setMeshyModel] = useState("meshy-7.1");
+  const [meshyGeometryResolution, setMeshyGeometryResolution] = useState("standard");
+  const [meshyTextureResolution, setMeshyTextureResolution] = useState("2k");
+  const [meshyCreditsPerGeneration, setMeshyCreditsPerGeneration] = useState("20");
+  const [usdToBdtRate, setUsdToBdtRate] = useState("122.50");
+  const [costPerCreditUsd, setCostPerCreditUsd] = useState("0.05");
+  const [savingAdminSettings, setSavingAdminSettings] = useState(false);
+  const [adminSettingsSaved, setAdminSettingsSaved] = useState(false);
 
   const merchantStoreId = user?.id || "demo-merchant-001";
   const storeUrl =
@@ -65,10 +83,42 @@ export default function SettingsPage() {
     };
   }, [merchantStoreId]);
 
+  // Fetch SaaS Admin System Settings from DB
+  useEffect(() => {
+    let ignore = false;
+    async function loadAdminSettings() {
+      if (!isSaasAdmin) return;
+      try {
+        const res = await fetch("/api/admin/settings");
+        const json = await res.json();
+        if (!ignore && json.success && json.data) {
+          if (json.data.meshyApiKey) setMeshyApiKey(json.data.meshyApiKey);
+          if (json.data.meshyApiBaseUrl) setMeshyApiBaseUrl(json.data.meshyApiBaseUrl);
+          if (json.data.meshyModel) setMeshyModel(json.data.meshyModel);
+          if (json.data.meshyGeometryResolution)
+            setMeshyGeometryResolution(json.data.meshyGeometryResolution);
+          if (json.data.meshyTextureResolution)
+            setMeshyTextureResolution(json.data.meshyTextureResolution);
+          if (json.data.meshyCreditsPerGeneration)
+            setMeshyCreditsPerGeneration(String(json.data.meshyCreditsPerGeneration));
+          if (json.data.usdToBdtRate) setUsdToBdtRate(String(json.data.usdToBdtRate));
+          if (json.data.costPerCreditUsd)
+            setCostPerCreditUsd(String(json.data.costPerCreditUsd));
+        }
+      } catch (err) {
+        console.error("Failed to load admin settings:", err);
+      }
+    }
+    loadAdminSettings();
+    return () => {
+      ignore = true;
+    };
+  }, [isSaasAdmin]);
+
   async function handleSaveMerchantSettings(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    setSavedSuccess(false);
+    setSavingMerchant(true);
+    setMerchantSavedSuccess(false);
 
     try {
       const res = await fetch("/api/merchants/profile", {
@@ -83,13 +133,48 @@ export default function SettingsPage() {
       });
       const json = await res.json();
       if (json.success) {
-        setSavedSuccess(true);
-        setTimeout(() => setSavedSuccess(false), 3000);
+        setMerchantSavedSuccess(true);
+        setTimeout(() => setMerchantSavedSuccess(false), 3000);
       }
     } catch (err) {
       console.error("Error saving merchant profile:", err);
     } finally {
-      setSaving(false);
+      setSavingMerchant(false);
+    }
+  }
+
+  async function handleSaveAdminSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingAdminSettings(true);
+    setAdminSettingsSaved(false);
+
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meshyApiKey,
+          meshyApiBaseUrl,
+          meshyModel,
+          meshyGeometryResolution,
+          meshyTextureResolution,
+          meshyCreditsPerGeneration: parseInt(meshyCreditsPerGeneration, 10) || 20,
+          usdToBdtRate: parseFloat(usdToBdtRate) || 122.5,
+          costPerCreditUsd: parseFloat(costPerCreditUsd) || 0.05,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAdminSettingsSaved(true);
+        setTimeout(() => setAdminSettingsSaved(false), 3500);
+      } else {
+        alert(json.error || "Failed to update system settings in DB");
+      }
+    } catch (err) {
+      console.error("Failed to save admin settings:", err);
+      alert("Error saving settings to database.");
+    } finally {
+      setSavingAdminSettings(false);
     }
   }
 
@@ -103,11 +188,240 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout
-      title="Studio Settings"
-      subtitle="Configure your merchant storefront, WhatsApp contact number, and integration settings"
+      title="Studio & Platform Settings"
+      subtitle="Manage merchant storefront, WhatsApp contact, and SaaS platform configurations"
     >
       <div className="max-w-4xl space-y-6">
-        {/* Merchant Public Profile & WhatsApp Settings */}
+        {/* ================================================================= */}
+        {/* 1. SaaS Admin Platform Configuration (Database Stored)           */}
+        {/* ================================================================= */}
+        {isSaasAdmin ? (
+          <Card className="border-amber-200/90 bg-white shadow-xs overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent px-6 py-4 border-b border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-amber-700 text-white flex items-center justify-center shadow-xs">
+                  <Sliders className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-bold text-stone-900">
+                      SaaS Admin Platform Configuration (Database Stored)
+                    </CardTitle>
+                    <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold">
+                      Supabase DB Live
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-stone-600 mt-0.5">
+                    Configure Meshy AI keys, model settings, and economics rates stored in PostgreSQL
+                  </CardDescription>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge variant="success" className="gap-1 text-[10px]">
+                  <Database className="w-3 h-3" />
+                  <span>public.system_settings</span>
+                </Badge>
+              </div>
+            </div>
+
+            <CardContent className="p-6">
+              <form onSubmit={handleSaveAdminSettings} className="space-y-6">
+                {/* Section A: Meshy AI Multi-Image API Settings */}
+                <div className="space-y-3.5">
+                  <div className="flex items-center gap-2 pb-1 border-b border-stone-100">
+                    <Cpu className="h-4 w-4 text-amber-700" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                      Meshy AI Multi-Image to 3D API
+                    </h4>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                      <span>MESHY_API_KEY <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-stone-400 font-mono">Secret Key for 3D generation</span>
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        value={meshyApiKey}
+                        onChange={(e) => setMeshyApiKey(e.target.value)}
+                        placeholder="your_meshy_api_key_here"
+                        className="h-9 text-xs font-mono pr-10 bg-stone-50/50"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                        title={showApiKey ? "Hide Key" : "Show Key"}
+                      >
+                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700">
+                        MESHY_API_BASE_URL
+                      </label>
+                      <Input
+                        type="url"
+                        value={meshyApiBaseUrl}
+                        onChange={(e) => setMeshyApiBaseUrl(e.target.value)}
+                        placeholder="https://api.meshy.ai"
+                        className="h-9 text-xs font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700">
+                        MESHY_MODEL
+                      </label>
+                      <Input
+                        type="text"
+                        value={meshyModel}
+                        onChange={(e) => setMeshyModel(e.target.value)}
+                        placeholder="meshy-7.1"
+                        className="h-9 text-xs font-mono"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700">
+                        GEOMETRY_RESOLUTION
+                      </label>
+                      <select
+                        value={meshyGeometryResolution}
+                        onChange={(e) => setMeshyGeometryResolution(e.target.value)}
+                        className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
+                      >
+                        <option value="standard">standard (Optimized WebGL)</option>
+                        <option value="high_poly">high_poly (Ultra Details)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700">
+                        TEXTURE_RESOLUTION
+                      </label>
+                      <select
+                        value={meshyTextureResolution}
+                        onChange={(e) => setMeshyTextureResolution(e.target.value)}
+                        className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
+                      >
+                        <option value="1k">1k (Fast Preview)</option>
+                        <option value="2k">2k (Standard PBR)</option>
+                        <option value="4k">4k (Ultra High Res)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700">
+                        CREDITS_PER_GENERATION
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={meshyCreditsPerGeneration}
+                        onChange={(e) => setMeshyCreditsPerGeneration(e.target.value)}
+                        className="h-9 text-xs font-mono"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section B: Economics & Currency Rates */}
+                <div className="space-y-3.5 pt-2">
+                  <div className="flex items-center gap-2 pb-1 border-b border-stone-100">
+                    <DollarSign className="h-4 w-4 text-emerald-700" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                      Economics & Currency Rates
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                        <span>USD_TO_BDT_RATE</span>
+                        <span className="text-[10px] text-stone-400 font-normal">BDT per 1 USD</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
+                          ৳
+                        </span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="1"
+                          value={usdToBdtRate}
+                          onChange={(e) => setUsdToBdtRate(e.target.value)}
+                          className="h-9 text-xs font-mono font-bold pl-7"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
+                        <span>COST_PER_CREDIT_USD</span>
+                        <span className="text-[10px] text-stone-400 font-normal">USD cost per 1 credit</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
+                          $
+                        </span>
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0.001"
+                          value={costPerCreditUsd}
+                          onChange={(e) => setCostPerCreditUsd(e.target.value)}
+                          className="h-9 text-xs font-mono font-bold pl-7"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-stone-100">
+                  <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Values are written directly to PostgreSQL and take effect immediately.</span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {adminSettingsSaved && (
+                      <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" /> Settings saved to Database!
+                      </span>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={savingAdminSettings}
+                      className="bg-amber-700 hover:bg-amber-800 text-white text-xs h-9 px-5 shadow-xs font-semibold"
+                    >
+                      {savingAdminSettings ? "Saving to DB..." : "Save Platform Configuration"}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* ================================================================= */}
+        {/* 2. Merchant Public Profile & WhatsApp Settings                    */}
+        {/* ================================================================= */}
         <Card className="border-stone-200/80 bg-white">
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -224,7 +538,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2 border-t border-stone-100">
-                {savedSuccess && (
+                {merchantSavedSuccess && (
                   <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
                     <Check className="w-3.5 h-3.5" /> Changes saved to Supabase!
                   </span>
@@ -232,17 +546,19 @@ export default function SettingsPage() {
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={saving}
+                  disabled={savingMerchant}
                   className="bg-amber-700 hover:bg-amber-800 text-white text-xs h-9 px-4"
                 >
-                  {saving ? "Saving Profile..." : "Save Merchant Settings"}
+                  {savingMerchant ? "Saving Profile..." : "Save Merchant Settings"}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
 
-        {/* User Profile Card */}
+        {/* ================================================================= */}
+        {/* 3. User Session Profile Card                                      */}
+        {/* ================================================================= */}
         <Card className="border-stone-200/80 bg-white">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -304,7 +620,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Integration Statuses */}
+        {/* ================================================================= */}
+        {/* 4. Integration & Provider Statuses                                */}
+        {/* ================================================================= */}
         <Card className="border-stone-200/80 bg-white">
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-stone-900">
@@ -320,7 +638,7 @@ export default function SettingsPage() {
                 <Database className="h-4 w-4 text-emerald-600" />
                 <div>
                   <p className="text-xs font-semibold text-stone-900">
-                    Supabase Cloud Database (via Supabase JS SDK)
+                    Supabase Cloud Database (public.system_settings & tables)
                   </p>
                   <p className="text-[11px] text-stone-500">
                     Project Ref: aafouqxsgibfqjcxozii • Direct REST/RPC Query Engine
@@ -350,14 +668,14 @@ export default function SettingsPage() {
                 <Cpu className="h-4 w-4 text-amber-600" />
                 <div>
                   <p className="text-xs font-semibold text-stone-900">
-                    Meshy AI Multi-Image to 3D API
+                    Meshy AI Multi-Image to 3D API (Dynamic DB Config)
                   </p>
                   <p className="text-[11px] text-stone-500">
-                    Model: meshy-7.1 / standard • 2K Textures • PBR enabled
+                    Model: {meshyModel} • {meshyTextureResolution.toUpperCase()} Texture • {meshyCreditsPerGeneration} Credits/Gen
                   </p>
                 </div>
               </div>
-              <Badge variant="secondary">Configured</Badge>
+              <Badge variant="secondary">Configured in DB</Badge>
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-lg border border-stone-100 bg-stone-50/50">
@@ -365,7 +683,7 @@ export default function SettingsPage() {
                 <ShieldCheck className="h-4 w-4 text-stone-600" />
                 <div>
                   <p className="text-xs font-semibold text-stone-900">
-                    Merchant Authentication
+                    Merchant Authentication & RBAC
                   </p>
                   <p className="text-[11px] text-stone-500">
                     Demo Merchant Profile & Role-Based Access
