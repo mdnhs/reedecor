@@ -60,10 +60,10 @@ export default function SettingsPage() {
                 <Database className="h-4 w-4 text-emerald-600" />
                 <div>
                   <p className="text-xs font-semibold text-stone-900">
-                    Supabase PostgreSQL (via Drizzle ORM)
+                    Supabase Cloud Database (via Supabase JS SDK)
                   </p>
                   <p className="text-[11px] text-stone-500">
-                    Project Ref: aafouqxsgibfqjcxozii
+                    Project Ref: aafouqxsgibfqjcxozii • Direct REST/RPC Query Engine
                   </p>
                 </div>
               </div>
@@ -105,10 +105,10 @@ export default function SettingsPage() {
                 <ShieldCheck className="h-4 w-4 text-stone-600" />
                 <div>
                   <p className="text-xs font-semibold text-stone-900">
-                    Authentication Engine
+                    Merchant Authentication
                   </p>
                   <p className="text-[11px] text-stone-500">
-                    Better Auth (Drizzle PostgreSQL Adapter)
+                    Demo Merchant Profile & Role-Based Access
                   </p>
                 </div>
               </div>

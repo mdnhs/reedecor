@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { RotateCcw, ZoomIn, ZoomOut, SunMedium } from "lucide-react";
+import { RotateCcw, ZoomIn, ZoomOut, SunMedium, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ModelViewerProps {
@@ -24,12 +24,13 @@ export function ModelViewer({
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [bgMode, setBgMode] = useState<"neutral" | "dark" | "transparent">("neutral");
+  const [bgMode, setBgMode] = useState<"white" | "warm" | "transparent">("white");
+  const [autoRotate, setAutoRotate] = useState(true);
+  const autoRotateRef = useRef(autoRotate);
 
-  // Three.js instances ref
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const initialCameraPos = useRef<THREE.Vector3>(new THREE.Vector3(1.5, 1.2, 1.8));
+  const initialCameraPos = useRef<THREE.Vector3>(new THREE.Vector3(1.6, 1.2, 1.9));
 
   useEffect(() => {
     const container = mountRef.current;
@@ -42,7 +43,7 @@ export function ModelViewer({
 
     // 2. Camera setup
     const width = container.clientWidth || 800;
-    const height = container.clientHeight || 500;
+    const height = container.clientHeight || 550;
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 100);
     camera.position.copy(initialCameraPos.current);
     cameraRef.current = camera;
@@ -58,31 +59,38 @@ export function ModelViewer({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
 
     container.replaceChildren(renderer.domElement);
 
-    // 4. Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    // 4. Photorealistic Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xfff8ee, 2.0);
+    // Main Studio Key Light
+    const keyLight = new THREE.DirectionalLight(0xfffdfa, 2.2);
     keyLight.position.set(3, 5, 4);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 15;
-    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.bias = -0.0004;
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xe8f0ff, 1.0);
+    // Soft Rim / Fill Light
+    const fillLight = new THREE.DirectionalLight(0xf0f5ff, 1.2);
     fillLight.position.set(-3, 3, -2);
     scene.add(fillLight);
 
+    // Top Overhead Light
+    const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    topLight.position.set(0, 6, 0);
+    scene.add(topLight);
+
     // Subtle Ground Shadow Plane
-    const groundGeo = new THREE.PlaneGeometry(10, 10);
-    const groundMat = new THREE.ShadowMaterial({ opacity: 0.15 });
+    const groundGeo = new THREE.PlaneGeometry(12, 12);
+    const groundMat = new THREE.ShadowMaterial({ opacity: 0.12 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
@@ -93,10 +101,12 @@ export function ModelViewer({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent camera dipping below floor
+    controls.autoRotate = autoRotateRef.current;
+    controls.autoRotateSpeed = 1.2;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
     controls.minDistance = 0.5;
     controls.maxDistance = 6.0;
-    controls.target.set(0, 0.4, 0);
+    controls.target.set(0, 0.45, 0);
     controlsRef.current = controls;
 
     // 6. Load GLB Model
@@ -113,21 +123,18 @@ export function ModelViewer({
 
         currentModel = gltf.scene;
 
-        // Auto-center & normalize scale based on bounding box
         const bbox = new THREE.Box3().setFromObject(currentModel);
         const size = bbox.getSize(new THREE.Vector3());
         const center = bbox.getCenter(new THREE.Vector3());
 
         const maxDim = Math.max(size.x, size.y, size.z);
-        const targetScale = 1.0 / (maxDim || 1);
+        const targetScale = 1.05 / (maxDim || 1);
         currentModel.scale.setScalar(targetScale);
 
-        // Center on floor
         currentModel.position.x = -center.x * targetScale;
         currentModel.position.z = -center.z * targetScale;
         currentModel.position.y = -bbox.min.y * targetScale;
 
-        // Shadows & PBR materials enhancements
         currentModel.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
@@ -173,7 +180,7 @@ export function ModelViewer({
     };
     window.addEventListener("resize", handleResize);
 
-    // 9. Cleanup & memory leak prevention
+    // 9. Cleanup
     return () => {
       isMounted = false;
       window.removeEventListener("resize", handleResize);
@@ -202,10 +209,17 @@ export function ModelViewer({
     };
   }, [modelUrl]);
 
+  useEffect(() => {
+    autoRotateRef.current = autoRotate;
+    if (controlsRef.current) {
+      controlsRef.current.autoRotate = autoRotate;
+    }
+  }, [autoRotate]);
+
   const resetCamera = () => {
     if (controlsRef.current && cameraRef.current) {
       cameraRef.current.position.copy(initialCameraPos.current);
-      controlsRef.current.target.set(0, 0.4, 0);
+      controlsRef.current.target.set(0, 0.45, 0);
       controlsRef.current.update();
     }
   };
@@ -220,24 +234,24 @@ export function ModelViewer({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[500px] flex flex-col rounded-xl overflow-hidden border border-stone-200/80 bg-white shadow-xs">
+    <div className="relative w-full h-full min-h-[550px] flex flex-col rounded-2xl overflow-hidden border border-stone-200/90 bg-white shadow-sm">
       {/* 3D Canvas Viewport */}
       <div
         ref={mountRef}
         className={`w-full h-full flex-1 transition-colors duration-300 ${
-          bgMode === "neutral"
-            ? "bg-radial from-stone-100 to-stone-200/60"
-            : bgMode === "dark"
-            ? "bg-stone-900"
+          bgMode === "white"
+            ? "bg-radial from-stone-50 via-stone-100/60 to-stone-200/50"
+            : bgMode === "warm"
+            ? "bg-radial from-amber-50/40 via-stone-100/70 to-stone-200/70"
             : "bg-transparent"
         }`}
       />
 
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center space-y-3 z-10">
-          <div className="h-10 w-10 border-3 border-amber-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-semibold text-stone-800">
+        <div className="absolute inset-0 bg-white/85 backdrop-blur-xs flex flex-col items-center justify-center space-y-3 z-10">
+          <div className="h-10 w-10 border-3 border-stone-900 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-stone-900">
             Loading 3D Studio Model... {progress > 0 && `${progress}%`}
           </p>
         </div>
@@ -251,54 +265,63 @@ export function ModelViewer({
       )}
 
       {/* Floating Studio Controls Bar */}
-      <div className="absolute top-4 right-4 flex items-center gap-1.5 p-1 rounded-lg bg-white/80 backdrop-blur-md border border-stone-200 shadow-xs z-10">
+      <div className="absolute top-4 right-4 flex items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-stone-200/90 shadow-xs z-10">
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8"
+          className="h-8 w-8 text-stone-600 hover:text-stone-900"
+          onClick={() => setAutoRotate((r) => !r)}
+          title={autoRotate ? "Pause Rotation" : "Auto Rotate"}
+        >
+          {autoRotate ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-stone-600 hover:text-stone-900"
           onClick={resetCamera}
           title="Reset Camera"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-3.5 w-3.5" />
         </Button>
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8"
-          onClick={() => handleZoom(0.3)}
+          className="h-8 w-8 text-stone-600 hover:text-stone-900"
+          onClick={() => handleZoom(0.35)}
           title="Zoom In"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn className="h-3.5 w-3.5" />
         </Button>
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8"
-          onClick={() => handleZoom(-0.3)}
+          className="h-8 w-8 text-stone-600 hover:text-stone-900"
+          onClick={() => handleZoom(-0.35)}
           title="Zoom Out"
         >
-          <ZoomOut className="h-4 w-4" />
+          <ZoomOut className="h-3.5 w-3.5" />
         </Button>
         <div className="w-px h-4 bg-stone-200" />
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8"
+          className="h-8 w-8 text-stone-600 hover:text-stone-900"
           onClick={() =>
             setBgMode((m) =>
-              m === "neutral" ? "dark" : m === "dark" ? "transparent" : "neutral"
+              m === "white" ? "warm" : m === "warm" ? "transparent" : "white"
             )
           }
           title="Toggle Backdrop"
         >
-          <SunMedium className="h-4 w-4" />
+          <SunMedium className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       {/* Floating Real-world Dimensions Badge */}
-      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-stone-200/80 shadow-xs text-xs text-stone-700 flex items-center gap-2 z-10">
-        <span className="font-semibold text-stone-900">Scale:</span>
-        <span>
+      <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-stone-200/90 shadow-2xs text-xs text-stone-700 flex items-center gap-2 z-10">
+        <span className="font-bold text-stone-900">Real Scale:</span>
+        <span className="font-medium">
           {(widthMm / 10).toFixed(0)} × {(depthMm / 10).toFixed(0)} × {(heightMm / 10).toFixed(0)} cm
         </span>
       </div>

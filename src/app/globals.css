@@ -2,73 +2,59 @@
 
 @layer base {
   :root {
-    --background: 45 20% 98%;
-    --foreground: 220 25% 10%;
+    /* Pure, warm luxury light mode */
+    --background: 40 20% 98.8%;
+    --foreground: 24 10% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card-foreground: 24 10% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover-foreground: 24 10% 12%;
 
-    --primary: 28 65% 36%;
+    --primary: 24 10% 12%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 15% 93%;
-    --secondary-foreground: 220 25% 12%;
+    --secondary: 40 12% 95%;
+    --secondary-foreground: 24 10% 15%;
 
-    --muted: 40 12% 92%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 40 10% 94%;
+    --muted-foreground: 24 8% 46%;
 
-    --accent: 28 50% 92%;
-    --accent-foreground: 28 65% 26%;
+    --accent: 32 45% 94%;
+    --accent-foreground: 28 65% 24%;
 
     --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 40 12% 88%;
-    --input: 40 12% 88%;
-    --ring: 28 65% 36%;
+    --border: 40 10% 90%;
+    --input: 40 10% 90%;
+    --ring: 24 10% 12%;
 
-    --radius: 0.625rem;
-  }
-
-  .dark {
-    --background: 220 25% 8%;
-    --foreground: 45 20% 96%;
-
-    --card: 220 22% 11%;
-    --card-foreground: 45 20% 96%;
-
-    --popover: 220 22% 11%;
-    --popover-foreground: 45 20% 96%;
-
-    --primary: 32 80% 55%;
-    --primary-foreground: 220 25% 8%;
-
-    --secondary: 220 18% 16%;
-    --secondary-foreground: 45 20% 96%;
-
-    --muted: 220 18% 18%;
-    --muted-foreground: 220 10% 65%;
-
-    --accent: 220 18% 18%;
-    --accent-foreground: 45 20% 96%;
-
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 220 18% 20%;
-    --input: 220 18% 20%;
-    --ring: 32 80% 55%;
+    --radius: 0.75rem;
   }
 }
 
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Studio subtle shadows */
+.studio-card-shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 10px 24px -6px rgba(0, 0, 0, 0.03);
+}
+
+.studio-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05), 0 20px 30px -10px rgba(0, 0, 0, 0.06);
 }
 
 /* Custom Scrollbars */
@@ -84,5 +70,5 @@ body {
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.4);
 }
