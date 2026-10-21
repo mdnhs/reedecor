@@ -3,11 +3,12 @@
 import React, { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
-import { X } from "lucide-react";
+import { X, ShieldCheck, LogOut, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
 import { LayoutDashboard, Box, PlusCircle, Coins, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -18,13 +19,30 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { user, role, isSaasAdmin, isCustomer, logout, switchDemoRole } = useAuth();
 
   const mobileNav = [
-    { name: "Overview", href: "/", icon: LayoutDashboard },
-    { name: "My Products", href: "/products", icon: Box },
-    { name: "Create 3D Model", href: "/create", icon: PlusCircle },
-    { name: "Credits & Usage", href: "/credits", icon: Coins },
-    { name: "Settings", href: "/settings", icon: Settings },
+    { name: "Overview", href: "/", icon: LayoutDashboard, show: true },
+    { name: "My Products", href: "/products", icon: Box, show: true },
+    {
+      name: "Create 3D Model",
+      href: "/create",
+      icon: PlusCircle,
+      show: !isCustomer,
+    },
+    {
+      name: "Credits & Usage",
+      href: "/credits",
+      icon: Coins,
+      show: !isCustomer,
+    },
+    {
+      name: "Admin RBAC",
+      href: "/admin/rbac",
+      icon: ShieldCheck,
+      show: isSaasAdmin,
+    },
+    { name: "Settings", href: "/settings", icon: Settings, show: true },
   ];
 
   return (
@@ -52,33 +70,80 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <nav className="mt-6 space-y-1">
-                {mobileNav.map((item) => {
-                  const isActive =
-                    item.href === "/"
-                      ? pathname === "/"
-                      : pathname?.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-stone-900 text-white font-semibold shadow-xs"
-                          : "text-stone-600 hover:bg-stone-100"
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.name}</span>
-                    </Link>
-                  );
-                })}
+
+              {/* Persona status in drawer */}
+              <div className="mt-4 p-2.5 rounded-lg bg-stone-50 border border-stone-200/80 text-xs">
+                <p className="font-bold text-stone-900 truncate">{user?.name || "User"}</p>
+                <div className="flex items-center justify-between mt-1 text-[10px]">
+                  <span className="text-stone-500">Role:</span>
+                  <span className="font-bold uppercase tracking-wider text-amber-800">
+                    {role.replace("_", " ")}
+                  </span>
+                </div>
+              </div>
+
+              <nav className="mt-4 space-y-1">
+                {mobileNav
+                  .filter((item) => item.show)
+                  .map((item) => {
+                    const isActive =
+                      item.href === "/"
+                        ? pathname === "/"
+                        : pathname?.startsWith(item.href);
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-stone-100 text-stone-950 font-bold border border-stone-200/90 shadow-2xs"
+                            : "text-stone-600 hover:bg-stone-50"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.name}</span>
+                      </Link>
+                    );
+                  })}
               </nav>
             </div>
-            <div className="pt-6 border-t border-stone-100 text-xs text-stone-500 font-medium">
-              Demo Merchant Mode • Supabase Live
+
+            <div className="pt-4 border-t border-stone-100 space-y-2">
+              <div className="grid grid-cols-3 gap-1 text-[9px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => switchDemoRole("saas_admin")}
+                  className="py-1 rounded-sm border border-stone-200 bg-stone-50"
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchDemoRole("merchant")}
+                  className="py-1 rounded-sm border border-stone-200 bg-stone-50"
+                >
+                  Merch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchDemoRole("customer")}
+                  className="py-1 rounded-sm border border-stone-200 bg-stone-50"
+                >
+                  Cust
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-xs text-stone-500 pt-1">
+                <Link href="/login" className="hover:text-stone-900 flex items-center gap-1">
+                  <ArrowRightLeft className="h-3 w-3" />
+                  <span>Login</span>
+                </Link>
+                <button onClick={logout} className="hover:text-rose-600 flex items-center gap-1">
+                  <LogOut className="h-3 w-3" />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

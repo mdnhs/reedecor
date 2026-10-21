@@ -1,4 +1,5 @@
-import { Hono } from "hono";
+import { Hono, Context } from "hono";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { inMemoryStore, StoredProduct } from "./demo-store";
@@ -6,12 +7,46 @@ import { supabaseDb } from "@/lib/supabase/db";
 import { meshyClient } from "@/lib/meshy/client";
 import { storageService } from "@/lib/storage/supabase-storage";
 import { DEMO_MERCHANT } from "@/lib/constants";
+import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
 
 export const app = new Hono().basePath("/api");
 
 // ---------------------------------------------------------------------------
+// Auth Helper & Middlewares
+// ---------------------------------------------------------------------------
+async function getCurrentUser(c: Context): Promise<AppUser | null> {
+  const cookieToken = getCookie(c, "app_session");
+  const authHeader = c.req.header("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = cookieToken || bearerToken;
+
+  if (token) {
+    const user = await authService.validateSession(token);
+    if (user) return user;
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
+const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["saas_admin", "merchant", "customer"]).default("customer"),
+});
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const switchDemoSchema = z.object({
+  role: z.enum(["saas_admin", "merchant", "customer"]),
+});
+
 const createProductSchema = z.object({
   name: z.string().min(2, "Product name must be at least 2 characters").max(100),
   category: z.enum([
@@ -58,10 +93,225 @@ const createProductSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Endpoints (Powered by Supabase SDK)
+// Authentication & RBAC Routes
 // ---------------------------------------------------------------------------
 
-// 1. List Products
+// 1. Get current logged in user
+app.get("/auth/me", async (c) => {
+  const user = await getCurrentUser(c);
+  if (!user) {
+    // If not authenticated, return default merchant context in demo mode
+    return c.json({
+      success: true,
+      data: {
+        id: DEMO_MERCHANT.id,
+        email: DEMO_MERCHANT.email,
+        name: DEMO_MERCHANT.name,
+        role: "merchant" as UserRole,
+        status: "active",
+        isGuestFallback: true,
+      },
+    });
+  }
+  return c.json({
+    success: true,
+    data: user,
+  });
+});
+
+// 2. Register
+app.post("/auth/register", zValidator("json", registerSchema), async (c) => {
+  const { name, email, password, role } = c.req.valid("json");
+  try {
+    const user = await authService.createUser(email, password, name, role as UserRole);
+    const token = await authService.createSession(user.id);
+
+    setCookie(c, "app_session", token, {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 30 * 24 * 60 * 60,
+      sameSite: "Lax",
+    });
+
+    return c.json({ success: true, data: user }, 201);
+  } catch (err: unknown) {
+    return c.json(
+      { success: false, error: err instanceof Error ? err.message : "Registration failed" },
+      400
+    );
+  }
+});
+
+// 3. Login
+app.post("/auth/login", zValidator("json", loginSchema), async (c) => {
+  const { email, password } = c.req.valid("json");
+  try {
+    const user = await authService.verifyCredentials(email, password);
+    if (!user) {
+      return c.json({ success: false, error: "Invalid email or password" }, 401);
+    }
+
+    const token = await authService.createSession(user.id);
+
+    setCookie(c, "app_session", token, {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 30 * 24 * 60 * 60,
+      sameSite: "Lax",
+    });
+
+    return c.json({ success: true, data: user });
+  } catch (err: unknown) {
+    return c.json(
+      { success: false, error: err instanceof Error ? err.message : "Login failed" },
+      400
+    );
+  }
+});
+
+// 4. Logout
+app.post("/auth/logout", async (c) => {
+  const cookieToken = getCookie(c, "app_session");
+  if (cookieToken) {
+    await authService.deleteSession(cookieToken);
+  }
+  deleteCookie(c, "app_session", { path: "/" });
+  return c.json({ success: true, message: "Logged out successfully" });
+});
+
+// 5. One-click Demo Role Switcher (For easy sandbox switching between saas_admin, merchant, customer)
+app.post("/auth/switch-demo", zValidator("json", switchDemoSchema), async (c) => {
+  const { role } = c.req.valid("json");
+  await authService.ensureSeedUsers();
+
+  const targetEmail =
+    role === "saas_admin"
+      ? "admin@artisanstudio.com"
+      : role === "merchant"
+      ? "merchant@artisanstudio.com"
+      : "customer@artisanstudio.com";
+
+  const password =
+    role === "saas_admin" ? "admin123" : role === "merchant" ? "merchant123" : "customer123";
+
+  const user = await authService.verifyCredentials(targetEmail, password);
+  if (!user) {
+    return c.json({ success: false, error: "Failed to switch role" }, 500);
+  }
+
+  const token = await authService.createSession(user.id);
+
+  setCookie(c, "app_session", token, {
+    path: "/",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 30 * 24 * 60 * 60,
+    sameSite: "Lax",
+  });
+
+  return c.json({ success: true, data: user });
+});
+
+// ---------------------------------------------------------------------------
+// RBAC User Management Endpoints (SaaS Admin Only)
+// ---------------------------------------------------------------------------
+
+// 6. List all users (Admin RBAC dashboard)
+app.get("/admin/users", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json(
+      { success: false, error: "Access denied. SaaS Admin privilege required." },
+      403
+    );
+  }
+
+  const users = await authService.getAllUsers();
+  return c.json({ success: true, data: users });
+});
+
+// 7. Update user role (saas_admin can promote/demote to saas_admin, merchant, customer)
+app.patch("/admin/users/:id/role", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json(
+      { success: false, error: "Access denied. SaaS Admin privilege required." },
+      403
+    );
+  }
+
+  const userId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const newRole = body.role as UserRole;
+
+  if (!["saas_admin", "merchant", "customer"].includes(newRole)) {
+    return c.json({ success: false, error: "Invalid role specified" }, 400);
+  }
+
+  const updated = await authService.updateUserRole(userId, newRole);
+  if (!updated) {
+    return c.json({ success: false, error: "User not found or role update failed" }, 404);
+  }
+
+  return c.json({ success: true, data: updated });
+});
+
+// 8. Update user status (active / suspended)
+app.patch("/admin/users/:id/status", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json(
+      { success: false, error: "Access denied. SaaS Admin privilege required." },
+      403
+    );
+  }
+
+  const userId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+  const status = body.status;
+
+  if (!["active", "suspended"].includes(status)) {
+    return c.json({ success: false, error: "Invalid status specified" }, 400);
+  }
+
+  const updated = await authService.updateUserStatus(userId, status);
+  if (!updated) {
+    return c.json({ success: false, error: "User not found or status update failed" }, 404);
+  }
+
+  return c.json({ success: true, data: updated });
+});
+
+// 9. Delete user
+app.delete("/admin/users/:id", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json(
+      { success: false, error: "Access denied. SaaS Admin privilege required." },
+      403
+    );
+  }
+
+  const userId = c.req.param("id");
+  if (userId === currentUser.id) {
+    return c.json({ success: false, error: "You cannot delete your own SaaS Admin account" }, 400);
+  }
+
+  const deleted = await authService.deleteUser(userId);
+  if (!deleted) {
+    return c.json({ success: false, error: "Failed to delete user" }, 404);
+  }
+
+  return c.json({ success: true, message: "User account deleted successfully" });
+});
+
+// ---------------------------------------------------------------------------
+// Product & Studio Endpoints (With RBAC Guards)
+// ---------------------------------------------------------------------------
+
+// List Products (Accessible to All: Customer, Merchant, SaaS Admin)
 app.get("/products", async (c) => {
   const dbProducts = await supabaseDb.getAllProducts();
   const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
@@ -71,7 +321,7 @@ app.get("/products", async (c) => {
   });
 });
 
-// 2. Get Product By ID
+// Get Product By ID (Accessible to All)
 app.get("/products/:id", async (c) => {
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
@@ -81,14 +331,25 @@ app.get("/products/:id", async (c) => {
   return c.json({ success: true, data: product });
 });
 
-// 3. Create Product
+// Create Product (Merchant or SaaS Admin Only)
 app.post("/products", zValidator("json", createProductSchema), async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      {
+        success: false,
+        error: "Customer accounts are view-only. Merchant permission is required to create furniture.",
+      },
+      403
+    );
+  }
+
   const body = c.req.valid("json");
   const id = `prod-${Date.now()}`;
 
   const newProduct: StoredProduct = {
     id,
-    merchantId: DEMO_MERCHANT.id,
+    merchantId: currentUser ? currentUser.id : DEMO_MERCHANT.id,
     name: body.name,
     category: body.category,
     description: body.description || null,
@@ -116,8 +377,16 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
   return c.json({ success: true, data: newProduct }, 201);
 });
 
-// 4. Delete Product
+// Delete Product (Merchant or SaaS Admin Only)
 app.delete("/products/:id", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      { success: false, error: "Customer accounts cannot delete products." },
+      403
+    );
+  }
+
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
@@ -132,8 +401,16 @@ app.delete("/products/:id", async (c) => {
   return c.json({ success: true, message: "Product deleted successfully" });
 });
 
-// 5. Start Generation (Meshy AI Multi-Image)
+// Start Generation (Meshy AI Multi-Image) - Merchant or SaaS Admin Only
 app.post("/products/:id/generate", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      { success: false, error: "Customer accounts cannot trigger 3D model generation." },
+      403
+    );
+  }
+
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
@@ -225,7 +502,7 @@ app.post("/products/:id/generate", async (c) => {
   }
 });
 
-// 6. Check Generation Status
+// Check Generation Status (Accessible to All)
 app.get("/products/:id/status", async (c) => {
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
@@ -354,8 +631,16 @@ app.get("/products/:id/status", async (c) => {
   });
 });
 
-// 7. Retry Generation
+// Retry Generation (Merchant or SaaS Admin Only)
 app.post("/products/:id/retry", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      { success: false, error: "Customer accounts cannot retry or trigger 3D generation." },
+      403
+    );
+  }
+
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
@@ -422,8 +707,16 @@ app.post("/products/:id/retry", async (c) => {
   }
 });
 
-// 8. Credits & Usage Analytics
+// Credits & Usage Analytics (Merchant or SaaS Admin Only)
 app.get("/credits/usage", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (currentUser && currentUser.role === "customer") {
+    return c.json(
+      { success: false, error: "Credits and usage analytics are reserved for Merchants and SaaS Admins." },
+      403
+    );
+  }
+
   const dbProducts = await supabaseDb.getAllProducts();
   const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
   const allAttempts = products.flatMap((p) => p.generationAttempts);

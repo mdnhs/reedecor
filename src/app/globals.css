@@ -2,6 +2,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     /* Pure, warm luxury light mode */
     --background: 40 20% 98.8%;
     --foreground: 24 10% 12%;

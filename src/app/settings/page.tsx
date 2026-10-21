@@ -4,40 +4,76 @@ import React from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DEMO_MERCHANT } from "@/lib/constants";
-import { Database, HardDrive, Cpu, ShieldCheck } from "lucide-react";
+import { useAuth } from "@/lib/auth/auth-context";
+import { Database, HardDrive, Cpu, ShieldCheck, UserCheck } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
+  const { user, role, isSaasAdmin } = useAuth();
+
   return (
     <DashboardLayout
       title="Studio Settings"
       subtitle="View your merchant profile, integration statuses, and environment configuration"
     >
       <div className="max-w-4xl space-y-6">
-        {/* Merchant Profile Card */}
+        {/* User Profile Card */}
         <Card className="border-stone-200/80 bg-white">
           <CardHeader>
-            <CardTitle className="text-sm font-semibold text-stone-900">
-              Merchant Profile
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Current active merchant session credentials
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold text-stone-900">
+                  User Session Profile
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Active authentication credentials and RBAC access tier
+                </CardDescription>
+              </div>
+              {isSaasAdmin && (
+                <Link href="/admin/rbac">
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Manage All Users (RBAC)</span>
+                  </Button>
+                </Link>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-stone-900 text-stone-50 flex items-center justify-center font-bold text-sm">
-                SM
+              <div
+                className={`h-12 w-12 rounded-full flex items-center justify-center font-bold text-sm ${
+                  role === "saas_admin"
+                    ? "bg-amber-100 text-amber-900 border border-amber-300"
+                    : role === "merchant"
+                    ? "bg-stone-900 text-stone-50"
+                    : "bg-stone-200 text-stone-700"
+                }`}
+              >
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : "U"}
               </div>
               <div>
                 <h4 className="font-semibold text-stone-900 text-sm">
-                  {DEMO_MERCHANT.name}
+                  {user?.name || "Merchant"}
                 </h4>
-                <p className="text-xs text-stone-500">{DEMO_MERCHANT.email}</p>
-                <div className="mt-1">
-                  <Badge variant="secondary" className="text-[10px]">
-                    Demo Merchant Profile
+                <p className="text-xs text-stone-500 font-mono">{user?.email || "user@artisanstudio.com"}</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <Badge
+                    variant={
+                      role === "saas_admin"
+                        ? "destructive"
+                        : role === "merchant"
+                        ? "processing"
+                        : "secondary"
+                    }
+                    className="text-[10px] uppercase font-bold"
+                  >
+                    Role: {role.replace("_", " ")}
                   </Badge>
+                  <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                    <UserCheck className="h-3 w-3" /> Active Session
+                  </span>
                 </div>
               </div>
             </div>

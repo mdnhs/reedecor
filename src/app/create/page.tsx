@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveProductImageToIDB } from "@/lib/storage/indexeddb-storage";
+import { useAuth } from "@/lib/auth/auth-context";
+import { ShieldAlert, Store } from "lucide-react";
 
 type AngleView = "front" | "back" | "left" | "right";
 
@@ -67,6 +69,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
 
 export default function CreateProductPage() {
   const router = useRouter();
+  const { isCustomer, switchDemoRole } = useAuth();
 
   // Form State
   const [name, setName] = useState("");
@@ -241,6 +244,45 @@ export default function CreateProductPage() {
       setSubmitting(false);
     }
   };
+
+  if (isCustomer) {
+    return (
+      <DashboardLayout
+        title="Create 3D Model — Access Restricted"
+        subtitle="Merchant account required to initiate 3D reconstructions"
+      >
+        <Card className="max-w-lg mx-auto my-12 border-amber-200 bg-amber-50/50 text-center p-8 space-y-5">
+          <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center">
+            <ShieldAlert className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-stone-900">
+              Customer Account (View Only)
+            </h2>
+            <p className="text-xs text-stone-600">
+              Customer accounts have view-only access to browse the interactive 3D catalog and inspect product dimensions. Uploading 4-angle photographs and generating 3D models via Meshy AI requires a <strong>Merchant</strong> or <strong>SaaS Admin</strong> account.
+            </p>
+          </div>
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <Button
+              onClick={() => switchDemoRole("merchant")}
+              className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
+            >
+              <Store className="h-4 w-4" />
+              <span>Switch to Merchant Account</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/products")}
+              className="text-xs"
+            >
+              Browse Catalog
+            </Button>
+          </div>
+        </Card>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout

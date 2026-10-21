@@ -12,6 +12,7 @@ import {
   Eye,
   RefreshCw,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -20,8 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export default function OverviewPage() {
+  const { isSaasAdmin, isCustomer } = useAuth();
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,21 +61,41 @@ export default function OverviewPage() {
           <div className="relative z-10 max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/70 text-amber-900 text-xs font-semibold">
               <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-              <span>AI Multi-Image 3D Studio</span>
+              <span>
+                {isSaasAdmin
+                  ? "SaaS Admin Dashboard — System Overview & RBAC"
+                  : isCustomer
+                  ? "Customer Storefront — 3D WebGL Furniture Collection"
+                  : "Merchant 3D Studio — Multi-Angle AI Generation"}
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-display">
-              Transform furniture photographs into interactive 3D models
+              {isCustomer
+                ? "Browse modern furniture pieces in interactive 3D WebGL"
+                : "Transform furniture photographs into interactive 3D models"}
             </h2>
             <p className="text-xs sm:text-sm text-stone-500 max-w-xl">
-              Upload 4 perspective angles (Front, Back, Left, Right). Meshy AI reconstructs realistic 3D geometries with 2K PBR materials ready for WebGL inspection and GLB export.
+              {isCustomer
+                ? "Rotate, zoom, and inspect physical dimensions of hand-crafted furniture pieces directly in your browser."
+                : "Upload 4 perspective angles (Front, Back, Left, Right). Meshy AI reconstructs realistic 3D geometries with 2K PBR materials ready for WebGL inspection and GLB export."}
             </p>
             <div className="pt-2 flex flex-wrap items-center gap-3">
-              <Link href="/create">
-                <Button className="gap-2 bg-stone-900 hover:bg-stone-800 text-white shadow-xs">
-                  <Plus className="h-4 w-4" />
-                  <span>Create 3D Model</span>
-                </Button>
-              </Link>
+              {isSaasAdmin && (
+                <Link href="/admin/rbac">
+                  <Button className="gap-2 bg-stone-900 hover:bg-stone-800 text-white shadow-xs">
+                    <ShieldCheck className="h-4 w-4 text-amber-400" />
+                    <span>Manage RBAC Users</span>
+                  </Button>
+                </Link>
+              )}
+              {!isCustomer && (
+                <Link href="/create">
+                  <Button className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs">
+                    <Plus className="h-4 w-4" />
+                    <span>Create 3D Model</span>
+                  </Button>
+                </Link>
+              )}
               <Link href="/products">
                 <Button variant="outline" className="gap-1.5 border-stone-200 text-stone-700 hover:bg-stone-50">
                   <span>View Catalog</span>

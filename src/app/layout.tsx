@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "A minimal, precision 3D studio for furniture merchants. Transform 4-angle product photos into realistic interactive 3D GLB models.",
 };
 
+import { AuthProvider } from "@/lib/auth/auth-context";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`}>
       <body className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))] font-sans antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

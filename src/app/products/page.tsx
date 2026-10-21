@@ -17,8 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension, cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export default function MyProductsPage() {
+  const { isCustomer } = useAuth();
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -135,12 +137,14 @@ export default function MyProductsPage() {
               <option value="draft">Draft</option>
             </select>
 
-            <Link href="/create">
-              <Button size="sm" className="gap-2 bg-stone-900 hover:bg-stone-800 text-white shadow-xs">
-                <Plus className="h-4 w-4" />
-                <span>Create Product</span>
-              </Button>
-            </Link>
+            {!isCustomer && (
+              <Link href="/create">
+                <Button size="sm" className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs">
+                  <Plus className="h-4 w-4" />
+                  <span>Create Product</span>
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -296,16 +300,18 @@ export default function MyProductsPage() {
                         </Button>
                       </Link>
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
-                        disabled={deletingId === product.id}
-                        onClick={() => handleDelete(product.id)}
-                        title="Delete product"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {!isCustomer && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
+                          disabled={deletingId === product.id}
+                          onClick={() => handleDelete(product.id)}
+                          title="Delete product"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Card>

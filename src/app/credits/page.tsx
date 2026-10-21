@@ -11,7 +11,10 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { formatCurrencyBDT } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/auth-context";
+import { Store, ShieldAlert } from "lucide-react";
 
 interface UsageData {
   totalAttempts: number;
@@ -36,25 +39,66 @@ interface UsageData {
 }
 
 export default function CreditsPage() {
+  const { isCustomer, switchDemoRole } = useAuth();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isCustomer) return;
+
+    let ignore = false;
     async function loadUsage() {
       try {
         const res = await fetch("/api/credits/usage");
         const json = await res.json();
-        if (json.success) {
+        if (!ignore && json.success) {
           setData(json.data);
         }
       } catch (err) {
         console.error("Failed to load credits usage:", err);
       } finally {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     }
     loadUsage();
-  }, []);
+    return () => {
+      ignore = true;
+    };
+  }, [isCustomer]);
+
+  if (isCustomer) {
+    return (
+      <DashboardLayout
+        title="Credits & Usage — Access Restricted"
+        subtitle="Customer accounts have view-only access without billing responsibilities"
+      >
+        <Card className="max-w-lg mx-auto my-12 border-amber-200 bg-amber-50/50 text-center p-8 space-y-5">
+          <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center">
+            <ShieldAlert className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-stone-900">
+              Customer Account (View Only)
+            </h2>
+            <p className="text-xs text-stone-600">
+              Credits and 3D generation billing telemetry are managed by <strong>Merchants</strong> and <strong>SaaS Administrators</strong>. Switch role to view real-time credits consumption and BDT conversion metrics.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Button
+              onClick={() => switchDemoRole("merchant")}
+              className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
+            >
+              <Store className="h-4 w-4" />
+              <span>Switch to Merchant Account</span>
+            </Button>
+          </div>
+        </Card>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout

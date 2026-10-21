@@ -19,8 +19,10 @@ import { ModelViewer } from "@/components/studio/model-viewer";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
 import { saveGeneratedModelToIDB, getGeneratedModelFromIDB } from "@/lib/storage/indexeddb-storage";
+import { useAuth } from "@/lib/auth/auth-context";
 
 function ViewerContent({ id }: { id: string }) {
+  const { isCustomer } = useAuth();
   const [product, setProduct] = useState<StoredProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [pollingProgress, setPollingProgress] = useState<number>(30);
@@ -206,16 +208,18 @@ function ViewerContent({ id }: { id: string }) {
               </Button>
             )}
 
-            <Button
-              onClick={handleRetry}
-              disabled={retrying || product.status === "processing"}
-              size="sm"
-              variant="outline"
-              className="gap-2"
-            >
-              <RotateCcw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
-              <span>{retrying ? "Initiating..." : "Generate Again"}</span>
-            </Button>
+            {!isCustomer && (
+              <Button
+                onClick={handleRetry}
+                disabled={retrying || product.status === "processing"}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                <RotateCcw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} />
+                <span>{retrying ? "Initiating..." : "Generate Again"}</span>
+              </Button>
+            )}
           </div>
         </div>
 
