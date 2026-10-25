@@ -238,3 +238,44 @@ describe("PUT /products/:id/scene", () => {
     expect((await res.json()).error).toContain("db down");
   });
 });
+
+describe("room in the scene API", () => {
+  const room = { enabled: true, wallColor: "#e7e0d5", floorType: "walnut" } as const;
+
+  it("saves a valid room and returns it", async () => {
+    const res = await put("owner-token", { ...scene([item("a")]), room });
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(mocks.scenesDb.upsert).toHaveBeenCalledWith("prod-1", { ...scene([item("a")]), room }, "m-owner");
+    expect(json.data.room).toEqual(room);
+  });
+
+  it("returns the stored room on read", async () => {
+    mocks.scenesDb.get.mockResolvedValue({ ...scene([item("a")]), room });
+    const json = await (await app.request("/api/products/prod-1/scene")).json();
+    expect(json.data.room).toEqual(room);
+  });
+
+  it("omits the room for a scene saved without one", async () => {
+    mocks.scenesDb.get.mockResolvedValue(scene([item("a")]));
+    const json = await (await app.request("/api/products/prod-1/scene")).json();
+    expect("room" in json.data).toBe(false);
+  });
+
+  it("rejects a wall colour that is not a hex value", async () => {
+    const res = await put("owner-token", { ...scene([]), room: { ...room, wallColor: "red" } });
+    expect(res.status).toBe(400);
+    expect(mocks.scenesDb.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown floor type", async () => {
+    const res = await put("owner-token", { ...scene([]), room: { ...room, floorType: "lava" } });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts a room-only change on an unchanged scene", async () => {
+    mocks.scenesDb.get.mockResolvedValue(scene([item("a")]));
+    const res = await put("owner-token", { ...scene([item("a")]), room });
+    expect(res.status).toBe(200);
+  });
+});

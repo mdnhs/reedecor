@@ -23,6 +23,7 @@ async function resolveScene(scene: SceneData): Promise<ResolvedScene> {
   return {
     schemaVersion: 1,
     backdrop: scene.backdrop,
+    ...(scene.room ? { room: scene.room } : {}),
     items: scene.items.flatMap((item) => {
       const found = versions.get(item.versionId);
       if (!found) return [];

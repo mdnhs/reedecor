@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MerchantAssetView } from "@/lib/assets/types";
+import { roomsEqual, suggestWallColors, type RoomSettings } from "@/lib/scenes/room";
 import { MAX_SCENE_ITEMS, type ResolvedScene } from "@/lib/scenes/types";
 import type { BackdropMode } from "../backdrop";
 import type { ViewerContext } from "../viewer-context";
+import { RoomRenderer } from "../room/room-renderer";
 import { AssetPanel } from "./asset-panel";
 import { AssetRail } from "./asset-rail";
 import {
@@ -14,6 +16,7 @@ import {
   type EditorMode,
   type PlaceableAsset,
 } from "./scene-controller";
+import { RoomPanel } from "./room-panel";
 import { SelectionToolbar } from "./selection-toolbar";
 import { useMerchantAssets } from "./use-merchant-assets";
 
@@ -53,6 +56,11 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [savedBackdrop, setSavedBackdrop] = useState(initialScene.backdrop);
+  const [room, setRoom] = useState<RoomSettings | undefined>(initialScene.room);
+  const [savedRoom, setSavedRoom] = useState<RoomSettings | undefined>(initialScene.room);
+  const [roomOpen, setRoomOpen] = useState(false);
+  const roomRendererRef = useRef<RoomRenderer | null>(null);
+  const roomRef = useRef(room);
   const assetsById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
   const assetsByIdRef = useRef(assetsById);
   const initialSceneRef = useRef(initialScene);
@@ -64,6 +72,22 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   useEffect(() => {
     assetsByIdRef.current = assetsById;
   }, [assetsById]);
+
+  useEffect(() => {
+    roomRef.current = room;
+    roomRendererRef.current?.apply(room);
+  }, [room]);
+
+  useEffect(() => {
+    if (!context) return;
+    const renderer = new RoomRenderer(context);
+    roomRendererRef.current = renderer;
+    renderer.apply(roomRef.current);
+    return () => {
+      renderer.dispose();
+      roomRendererRef.current = null;
+    };
+  }, [context]);
 
   useEffect(() => {
     if (!context) return;
@@ -114,7 +138,8 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   );
   const atLimit = state.itemCount >= MAX_SCENE_ITEMS;
   const hasLockedItems = initialScene.items.some((item) => assetsById.get(item.assetId)?.locked);
-  const dirty = state.dirty || backdrop !== savedBackdrop;
+  const dirty = state.dirty || backdrop !== savedBackdrop || !roomsEqual(room, savedRoom);
+  const suggestions = useMemo(() => suggestWallColors(context?.productTone ?? null), [context]);
 
   const changeMode = (next: EditorMode) => {
     setMode(next);
@@ -128,16 +153,23 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
     setSaveMessage(null);
     const revision = controller.revision;
     const backdropAtSave = backdrop;
+    const roomAtSave = room;
     try {
       const res = await fetch(`/api/products/${productId}/scene`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schemaVersion: 1, backdrop: backdropAtSave, items: controller.serialize() }),
+        body: JSON.stringify({
+          schemaVersion: 1,
+          backdrop: backdropAtSave,
+          ...(roomAtSave ? { room: roomAtSave } : {}),
+          items: controller.serialize(),
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Could not save scene");
       controller.markClean(revision);
       setSavedBackdrop(backdropAtSave);
+      setSavedRoom(roomAtSave);
       onSaved?.(json.data);
       setSaveMessage({ text: "Scene saved", ok: true });
     } catch (err) {
@@ -166,9 +198,18 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
               activeCategoryId={activeCategoryId}
               onSelectCategory={(id) => {
                 setActiveCategoryId(id);
+                setRoomOpen(false);
                 setSearch("");
               }}
+              roomActive={roomOpen}
+              onOpenRoom={() => {
+                setRoomOpen((open) => !open);
+                setActiveCategoryId(null);
+              }}
             />
+            {roomOpen && (
+              <RoomPanel room={room} suggestions={suggestions} onChange={setRoom} onClose={() => setRoomOpen(false)} />
+            )}
             {activeCategory && (
               <AssetPanel
                 assets={visibleAssets}

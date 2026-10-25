@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FLOOR_TYPES, isHexColor } from "./room";
 import { MAX_OFFSET_CM, MAX_SCENE_ITEMS, SCALE_RANGE } from "./types";
 
 const offset = z.number().finite().min(-MAX_OFFSET_CM).max(MAX_OFFSET_CM);
@@ -13,9 +14,16 @@ export const sceneItemSchema = z.object({
   scale: z.number().finite().min(SCALE_RANGE.min).max(SCALE_RANGE.max),
 });
 
+export const roomSchema = z.object({
+  enabled: z.boolean(),
+  wallColor: z.string().refine(isHexColor, { message: "Wall colour must be a #rrggbb hex value" }),
+  floorType: z.enum(FLOOR_TYPES),
+});
+
 export const sceneSchema = z.object({
   schemaVersion: z.literal(1),
   backdrop: z.enum(["auto", "studio", "white", "transparent"]),
+  room: roomSchema.optional(),
   items: z
     .array(sceneItemSchema)
     .max(MAX_SCENE_ITEMS)

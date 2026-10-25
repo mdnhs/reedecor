@@ -271,6 +271,7 @@ export function ModelViewer({
 
         scene.add(currentModel);
 
+        const tone = extractProductTone(currentModel);
         const context: ViewerContext = {
           scene,
           camera,
@@ -278,11 +279,13 @@ export function ModelViewer({
           controls,
           container,
           worldPerCm: worldUnitsPerCm({ widthMm, depthMm, heightMm }),
+          ground,
+          productTone: tone,
         };
         const cleanup = onReadyRef.current?.(context);
         readyCleanupRef.current = typeof cleanup === "function" ? cleanup : null;
         setViewerContext(context);
-        setProductTone(extractProductTone(currentModel));
+        setProductTone(tone);
         setLoading(false);
       },
       (xhr) => {

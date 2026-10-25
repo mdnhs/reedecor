@@ -1,5 +1,6 @@
 "use client";
 
+import { Home } from "lucide-react";
 import { CategoryIcon } from "@/components/assets/category-icon";
 import type { AssetCategory } from "@/lib/assets/types";
 
@@ -7,9 +8,11 @@ interface AssetRailProps {
   categories: AssetCategory[];
   activeCategoryId: string | null;
   onSelectCategory: (id: string | null) => void;
+  onOpenRoom?: () => void;
+  roomActive?: boolean;
 }
 
-export function AssetRail({ categories, activeCategoryId, onSelectCategory }: AssetRailProps) {
+export function AssetRail({ categories, activeCategoryId, onSelectCategory, onOpenRoom, roomActive }: AssetRailProps) {
   return (
     <nav
       aria-label="Asset categories"
@@ -33,6 +36,23 @@ export function AssetRail({ categories, activeCategoryId, onSelectCategory }: As
           </button>
         );
       })}
+      {onOpenRoom && (
+        <>
+          <div className="my-0.5 h-px w-6 bg-stone-200" />
+          <button
+            type="button"
+            title="Room"
+            aria-label="Room"
+            aria-pressed={!!roomActive}
+            onClick={onOpenRoom}
+            className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+              roomActive ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
+            }`}
+          >
+            <Home className="h-4 w-4" />
+          </button>
+        </>
+      )}
     </nav>
   );
 }

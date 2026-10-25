@@ -1,5 +1,6 @@
 import type { BackdropMode } from "@/components/studio/backdrop";
 import type { AssetPlacement } from "@/lib/assets/types";
+import type { RoomSettings } from "./room";
 
 export const MAX_SCENE_ITEMS = 20;
 export const SCALE_RANGE = { min: 0.2, max: 5 } as const;
@@ -18,6 +19,7 @@ export interface SceneItem {
 export interface SceneData {
   schemaVersion: 1;
   backdrop: BackdropMode;
+  room?: RoomSettings;
   items: SceneItem[];
 }
 
@@ -34,5 +36,6 @@ export interface ResolvedSceneItem extends SceneItem {
 export interface ResolvedScene {
   schemaVersion: 1;
   backdrop: BackdropMode;
+  room?: RoomSettings;
   items: ResolvedSceneItem[];
 }
