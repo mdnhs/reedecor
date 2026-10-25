@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModelViewer } from "@/components/studio/model-viewer";
 import { SceneEditor } from "@/components/studio/scene-editor/scene-editor";
+import { SceneView } from "@/components/studio/scene/scene-view";
 import type { BackdropMode } from "@/components/studio/backdrop";
 import { EMPTY_SCENE, type ResolvedScene } from "@/lib/scenes/types";
 import { StoredProduct } from "@/server/demo-store";
@@ -37,12 +38,13 @@ import {
 const EMPTY_SCENE_RESOLVED: ResolvedScene = { ...EMPTY_SCENE, items: [] };
 
 function ViewerContent({ id }: { id: string }) {
-  const { user, isCustomer, isSaasAdmin } = useAuth();
+  const { user, isCustomer, isSaasAdmin, isLoading: authLoading } = useAuth();
   const origin = useOrigin();
   const [product, setProduct] = useState<StoredProduct | null>(null);
   const [scene, setScene] = useState<ResolvedScene | null>(null);
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [sceneError, setSceneError] = useState<string | null>(null);
+  const [sceneRendered, setSceneRendered] = useState(false);
   const [backdrop, setBackdrop] = useState<BackdropMode>("auto");
   const [loading, setLoading] = useState(true);
   const [pollingProgress, setPollingProgress] = useState<number>(30);
@@ -111,8 +113,10 @@ function ViewerContent({ id }: { id: string }) {
   const canEditScene =
     !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
 
+  const sceneEnabled = product?.status === "completed";
+
   useEffect(() => {
-    if (!canEditScene) return;
+    if (!sceneEnabled) return;
     let ignore = false;
     async function loadScene() {
       try {
@@ -133,7 +137,7 @@ function ViewerContent({ id }: { id: string }) {
     return () => {
       ignore = true;
     };
-  }, [canEditScene, id]);
+  }, [sceneEnabled, id]);
 
   // Polling if processing
   const isProcessing = product?.status === "processing";
@@ -380,7 +384,7 @@ function ViewerContent({ id }: { id: string }) {
         {/* Studio Main Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div className="lg:col-span-2 space-y-4">
-            {product.status === "completed" && modelUrl && canEditScene && !sceneLoaded ? (
+            {product.status === "completed" && modelUrl && (authLoading || !sceneLoaded) ? (
               <Skeleton className="h-[550px] w-full" />
             ) : product.status === "completed" && modelUrl ? (
               <div className="h-[550px] w-full">
@@ -390,6 +394,7 @@ function ViewerContent({ id }: { id: string }) {
                   </p>
                 )}
                 <ModelViewer
+                  key={canEditScene ? "edit" : "view"}
                   modelUrl={modelUrl}
                   widthMm={product.widthMm}
                   depthMm={product.depthMm}
@@ -401,6 +406,20 @@ function ViewerContent({ id }: { id: string }) {
                   onUseAsThumbnail={isCustomer ? undefined : saveThumbnail}
                   initialBackdrop={scene?.backdrop}
                   onBackdropChange={setBackdrop}
+                  captureReady={sceneRendered || (canEditScene && !!sceneError)}
+                  onReady={
+                    canEditScene
+                      ? undefined
+                      : (context) => {
+                          if (!scene) {
+                            setSceneRendered(true);
+                            return;
+                          }
+                          const view = new SceneView(context);
+                          void view.load(scene).finally(() => setSceneRendered(true));
+                          return () => view.dispose();
+                        }
+                  }
                   renderOverlay={
                     canEditScene && !sceneError
                       ? (context) => (
@@ -410,6 +429,7 @@ function ViewerContent({ id }: { id: string }) {
                             backdrop={backdrop}
                             initialScene={scene ?? EMPTY_SCENE_RESOLVED}
                             onSaved={setScene}
+                            onLoaded={() => setSceneRendered(true)}
                           />
                         )
                       : undefined

@@ -28,6 +28,7 @@ interface SceneEditorProps {
   backdrop: BackdropMode;
   initialScene: ResolvedScene;
   onSaved?: (scene: ResolvedScene) => void;
+  onLoaded?: () => void;
 }
 
 function toPlaceable(asset: MerchantAssetView): PlaceableAsset {
@@ -46,7 +47,7 @@ function isTyping(target: EventTarget | null): boolean {
   return !!element && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable);
 }
 
-export function SceneEditor({ productId, context, backdrop, initialScene, onSaved }: SceneEditorProps) {
+export function SceneEditor({ productId, context, backdrop, initialScene, onSaved, onLoaded }: SceneEditorProps) {
   const { assets, categories, loading, error } = useMerchantAssets();
   const controllerRef = useRef<SceneController | null>(null);
   const [state, setState] = useState<ControllerState>({ selectedId: null, itemCount: 0, dirty: false });
@@ -64,6 +65,11 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   const assetsById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
   const assetsByIdRef = useRef(assetsById);
   const initialSceneRef = useRef(initialScene);
+  const onLoadedRef = useRef(onLoaded);
+
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
 
   useEffect(() => {
     initialSceneRef.current = initialScene;
@@ -93,7 +99,7 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
     if (!context) return;
     const controller = new SceneController(context, { onChange: setState });
     controllerRef.current = controller;
-    void controller.load(initialSceneRef.current.items);
+    void controller.load(initialSceneRef.current.items).finally(() => onLoadedRef.current?.());
 
     const dom = context.renderer.domElement;
     const onDragOver = (event: DragEvent) => {

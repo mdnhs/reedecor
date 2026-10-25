@@ -1,12 +1,10 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
-import { assetBaseScale } from "@/lib/scenes/scale";
 import { MAX_OFFSET_CM, MAX_SCENE_ITEMS, type ResolvedSceneItem, type SceneItem } from "@/lib/scenes/types";
 import type { ViewerContext } from "../viewer-context";
 import { DirtyTracker } from "@/lib/scenes/dirty-tracker";
-import { clampScale, itemToTransform, transformToItemFields } from "./convert";
+import { ItemLoader, disposeGroup, type PlaceableAsset } from "../scene/item-loader";
+import { clampScale, transformToItemFields } from "./convert";
 
 export type EditorMode = "translate" | "rotate" | "scale";
 
@@ -16,14 +14,7 @@ export interface ControllerState {
   dirty: boolean;
 }
 
-export interface PlaceableAsset {
-  assetId: string;
-  versionId: string;
-  glbUrl: string;
-  widthCm: number;
-  depthCm: number;
-  heightCm: number;
-}
+export type { PlaceableAsset };
 
 interface ItemRecord {
   id: string;
@@ -32,16 +23,13 @@ interface ItemRecord {
 }
 
 const CLICK_TOLERANCE_PX = 4;
-const PLACEHOLDER_COLOR = 0x9ca3af;
 const SELECTION_COLOR = 0x7c3aed;
 
 export class SceneController {
   private readonly items = new Map<string, ItemRecord>();
-  private readonly modelCache = new Map<string, Promise<THREE.Object3D>>();
   private readonly transform: TransformControls;
   private readonly selectionBox: THREE.BoxHelper;
-  private readonly dracoLoader = new DRACOLoader();
-  private readonly loader = new GLTFLoader();
+  private readonly loader: ItemLoader;
   private readonly raycaster = new THREE.Raycaster();
   private readonly floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private readonly lastScale = new Map<string, number>();
@@ -57,8 +45,7 @@ export class SceneController {
     private readonly context: ViewerContext,
     private readonly callbacks: { onChange: (state: ControllerState) => void }
   ) {
-    this.dracoLoader.setDecoderPath("/draco/");
-    this.loader.setDRACOLoader(this.dracoLoader);
+    this.loader = new ItemLoader(context.worldPerCm);
 
     this.transform = new TransformControls(context.camera, context.renderer.domElement);
     this.transform.setSize(0.8);
@@ -206,11 +193,7 @@ export class SceneController {
     this.selectionBox.geometry.dispose();
     (this.selectionBox.material as THREE.Material).dispose();
 
-    for (const pending of this.modelCache.values()) {
-      void pending.then((model) => disposeObject(model));
-    }
-    this.modelCache.clear();
-    this.dracoLoader.dispose();
+    this.loader.dispose();
   }
 
   private emit(): void {
@@ -227,85 +210,21 @@ export class SceneController {
     id: string,
     item: SceneItem
   ): Promise<void> {
-    const group = new THREE.Group();
-    group.userData.itemId = id;
-    const { position, rotationY } = itemToTransform(item, this.context.worldPerCm);
-    group.position.set(...position);
-    group.rotation.y = rotationY;
-    group.scale.setScalar(clampScale(item.scale));
-
-    const record: ItemRecord = { id, asset, group };
-    this.items.set(id, record);
+    const group = this.loader.createGroup(id, item);
+    this.items.set(id, { id, asset, group });
     this.context.scene.add(group);
     this.lastScale.set(id, group.scale.x);
 
-    let content: THREE.Object3D;
-    try {
-      content = (await this.loadModel(asset.glbUrl)).clone(true);
-      this.fitModel(content, asset);
-    } catch {
-      content = this.placeholder(asset);
-    }
-
-    if (this.disposed || !this.items.has(id)) {
-      return;
-    }
-    content.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    group.add(content);
+    await this.loader.fill(group, asset, () => !this.disposed && this.items.has(id));
+    if (this.disposed || !this.items.has(id)) return;
     if (this.selectedId === id) this.selectionBox.setFromObject(group);
-  }
-
-  private loadModel(url: string): Promise<THREE.Object3D> {
-    let pending = this.modelCache.get(url);
-    if (!pending) {
-      pending = this.loader.loadAsync(url).then((gltf) => gltf.scene);
-      this.modelCache.set(url, pending);
-    }
-    return pending;
-  }
-
-  private fitModel(model: THREE.Object3D, asset: PlaceableAsset): void {
-    const box = new THREE.Box3().setFromObject(model);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    const base = assetBaseScale({
-      worldPerCm: this.context.worldPerCm,
-      assetMaxCm: Math.max(asset.widthCm, asset.depthCm, asset.heightCm),
-      modelMaxSize: Math.max(size.x, size.y, size.z),
-    });
-    model.scale.multiplyScalar(base);
-    model.position.set(-center.x * base, -box.min.y * base, -center.z * base);
-  }
-
-  private placeholder(asset: PlaceableAsset): THREE.Object3D {
-    const k = this.context.worldPerCm;
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(asset.widthCm * k, asset.heightCm * k, asset.depthCm * k),
-      new THREE.MeshStandardMaterial({ color: PLACEHOLDER_COLOR, transparent: true, opacity: 0.6 })
-    );
-    mesh.position.y = (asset.heightCm * k) / 2;
-    mesh.userData.placeholder = true;
-    const holder = new THREE.Group();
-    holder.add(mesh);
-    return holder;
   }
 
   private removeRecord(id: string): void {
     const record = this.items.get(id);
     if (!record) return;
     this.context.scene.remove(record.group);
-    record.group.traverse((child) => {
-      const mesh = child as THREE.Mesh;
-      if (mesh.isMesh && mesh.userData.placeholder) {
-        mesh.geometry.dispose();
-        (mesh.material as THREE.Material).dispose();
-      }
-    });
+    disposeGroup(record.group);
     this.items.delete(id);
     this.lastScale.delete(id);
   }
@@ -361,19 +280,4 @@ export class SceneController {
     while (target && !target.userData.itemId) target = target.parent;
     this.select(target ? (target.userData.itemId as string) : null);
   };
-}
-
-function disposeObject(root: THREE.Object3D): void {
-  root.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    materials.forEach((material) => {
-      Object.values(material).forEach((value) => {
-        if (value instanceof THREE.Texture) value.dispose();
-      });
-      material.dispose();
-    });
-  });
 }

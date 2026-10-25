@@ -37,6 +37,7 @@ interface ModelViewerProps {
   onBackdropChange?: (mode: BackdropMode) => void;
   onReady?: (context: ViewerContext) => void | (() => void);
   renderOverlay?: (context: ViewerContext | null) => React.ReactNode;
+  captureReady?: boolean;
 }
 
 const THUMBNAIL_MAX_SIDE = 720;
@@ -71,6 +72,7 @@ export function ModelViewer({
   onBackdropChange,
   onReady,
   renderOverlay,
+  captureReady = true,
 }: ModelViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -416,7 +418,7 @@ export function ModelViewer({
   }, [onReady]);
 
   useEffect(() => {
-    if (loading || loadError || !onFirstFrameRef.current) return;
+    if (loading || loadError || !captureReady || !onFirstFrameRef.current) return;
     const frame = requestAnimationFrame(() =>
       requestAnimationFrame(async () => {
         if (firstFrameSent.current) return;
@@ -426,7 +428,7 @@ export function ModelViewer({
       })
     );
     return () => cancelAnimationFrame(frame);
-  }, [loading, loadError]);
+  }, [loading, loadError, captureReady]);
 
   const downloadCapture = () => {
     if (!capture) return;
