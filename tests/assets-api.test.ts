@@ -270,6 +270,13 @@ describe("asset route failure handling", () => {
 });
 
 describe("merchant asset listing", () => {
+  it("returns the categories alongside the assets", async () => {
+    mocks.assetsDb.listAssets.mockResolvedValue([]);
+    const res = await app.request("/api/assets", as("free-token"));
+    const json = await res.json();
+    expect(json.categories).toEqual([{ id: "cat-1", name: "Plants", icon: "leaf", sortOrder: 0 }]);
+  });
+
   it("blocks customers", async () => {
     expect((await app.request("/api/assets", as("customer-token"))).status).toBe(403);
   });

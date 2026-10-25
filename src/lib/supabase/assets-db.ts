@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./db";
+import { isUuid } from "../assets/ids";
 import type {
   AssetAccessLevel,
   AssetCategory,
@@ -148,6 +149,35 @@ class AssetsDbService {
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return this.hydrate(data ?? []);
+  }
+
+  async getVersionsWithAssets(
+    versionIds: string[]
+  ): Promise<Map<string, { version: AssetVersion; asset: RoomAsset }>> {
+    const result = new Map<string, { version: AssetVersion; asset: RoomAsset }>();
+    const validIds = versionIds.filter(isUuid);
+    if (validIds.length === 0) return result;
+
+    const { data: versionRows, error } = await this.client
+      .from("room_asset_versions")
+      .select("*")
+      .in("id", validIds);
+    if (error) throw new Error(error.message);
+    if (!versionRows?.length) return result;
+
+    const assetIds = [...new Set(versionRows.map((v) => v.asset_id as string))];
+    const { data: assetRows, error: assetError } = await this.client
+      .from("room_assets")
+      .select("*")
+      .in("id", assetIds);
+    if (assetError) throw new Error(assetError.message);
+
+    const assets = new Map((await this.hydrate(assetRows ?? [])).map((a) => [a.id, a]));
+    for (const row of versionRows) {
+      const asset = assets.get(row.asset_id);
+      if (asset) result.set(row.id, { version: mapVersion(row), asset });
+    }
+    return result;
   }
 
   async getAsset(id: string): Promise<RoomAsset | null> {

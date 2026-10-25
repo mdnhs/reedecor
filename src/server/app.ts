@@ -9,6 +9,7 @@ import { storageService } from "@/lib/storage/supabase-storage";
 import { DEMO_MERCHANT } from "@/lib/constants";
 import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
 import { assetRoutes } from "./asset-routes";
+import { sceneRoutes } from "./scene-routes";
 
 export const app = new Hono().basePath("/api");
 
@@ -348,6 +349,7 @@ app.delete("/admin/users/:id", async (c) => {
 });
 
 app.route("/", assetRoutes(getCurrentUser));
+app.route("/", sceneRoutes(getCurrentUser));
 
 // ---------------------------------------------------------------------------
 // Product & Studio Endpoints (With RBAC Guards)

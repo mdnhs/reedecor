@@ -259,9 +259,12 @@ export function assetRoutes(getCurrentUser: GetCurrentUser) {
       return fail(c, "Room assets are available to merchants and admins.", 403);
     }
 
-    const assets = await assetsDb.listAssets();
+    const [assets, categories] = await Promise.all([
+      assetsDb.listAssets(),
+      assetsDb.listCategories(),
+    ]);
     const views = assets.flatMap((asset) => toMerchantView(asset, user) ?? []);
-    return c.json({ success: true, data: views });
+    return c.json({ success: true, data: views, categories });
   });
 
   return routes;

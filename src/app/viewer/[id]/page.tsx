@@ -22,6 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModelViewer } from "@/components/studio/model-viewer";
+import { SceneEditor } from "@/components/studio/scene-editor/scene-editor";
+import type { BackdropMode } from "@/components/studio/backdrop";
+import { EMPTY_SCENE, type ResolvedScene } from "@/lib/scenes/types";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -31,10 +34,16 @@ import {
   getGeneratedModelFromIDB,
 } from "@/lib/storage/indexeddb-storage";
 
+const EMPTY_SCENE_RESOLVED: ResolvedScene = { ...EMPTY_SCENE, items: [] };
+
 function ViewerContent({ id }: { id: string }) {
-  const { user, isCustomer } = useAuth();
+  const { user, isCustomer, isSaasAdmin } = useAuth();
   const origin = useOrigin();
   const [product, setProduct] = useState<StoredProduct | null>(null);
+  const [scene, setScene] = useState<ResolvedScene | null>(null);
+  const [sceneLoaded, setSceneLoaded] = useState(false);
+  const [sceneError, setSceneError] = useState<string | null>(null);
+  const [backdrop, setBackdrop] = useState<BackdropMode>("auto");
   const [loading, setLoading] = useState(true);
   const [pollingProgress, setPollingProgress] = useState<number>(30);
   const [downloading, setDownloading] = useState(false);
@@ -98,6 +107,33 @@ function ViewerContent({ id }: { id: string }) {
     }
     loadProduct();
   }, [id]);
+
+  const canEditScene =
+    !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
+
+  useEffect(() => {
+    if (!canEditScene) return;
+    let ignore = false;
+    async function loadScene() {
+      try {
+        const res = await fetch(`/api/products/${id}/scene`);
+        const json = await res.json();
+        if (ignore) return;
+        if (!json.success) throw new Error(json.error || "Could not load the saved scene");
+        setScene(json.data);
+        setBackdrop(json.data.backdrop);
+      } catch (e) {
+        console.error("Error loading scene:", e);
+        if (!ignore) setSceneError(e instanceof Error ? e.message : "Could not load the saved scene");
+      } finally {
+        if (!ignore) setSceneLoaded(true);
+      }
+    }
+    loadScene();
+    return () => {
+      ignore = true;
+    };
+  }, [canEditScene, id]);
 
   // Polling if processing
   const isProcessing = product?.status === "processing";
@@ -344,8 +380,15 @@ function ViewerContent({ id }: { id: string }) {
         {/* Studio Main Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div className="lg:col-span-2 space-y-4">
-            {product.status === "completed" && modelUrl ? (
+            {product.status === "completed" && modelUrl && canEditScene && !sceneLoaded ? (
+              <Skeleton className="h-[550px] w-full" />
+            ) : product.status === "completed" && modelUrl ? (
               <div className="h-[550px] w-full">
+                {canEditScene && sceneError && (
+                  <p className="mb-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                    Scene editing is off because the saved scene could not be loaded ({sceneError}). Reload the page to try again.
+                  </p>
+                )}
                 <ModelViewer
                   modelUrl={modelUrl}
                   widthMm={product.widthMm}
@@ -356,6 +399,21 @@ function ViewerContent({ id }: { id: string }) {
                     product.thumbnailUrl ? undefined : (image) => void saveThumbnail(image).catch(() => {})
                   }
                   onUseAsThumbnail={isCustomer ? undefined : saveThumbnail}
+                  initialBackdrop={scene?.backdrop}
+                  onBackdropChange={setBackdrop}
+                  renderOverlay={
+                    canEditScene && !sceneError
+                      ? (context) => (
+                          <SceneEditor
+                            productId={product.id}
+                            context={context}
+                            backdrop={backdrop}
+                            initialScene={scene ?? EMPTY_SCENE_RESOLVED}
+                            onSaved={setScene}
+                          />
+                        )
+                      : undefined
+                  }
                 />
               </div>
             ) : product.status === "processing" ? (

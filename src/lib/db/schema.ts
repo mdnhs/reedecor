@@ -7,6 +7,7 @@ import {
   uuid,
   index,
   boolean,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -171,6 +172,13 @@ export const roomAssetAccess = pgTable("room_asset_access", {
     .notNull()
     .references(() => roomAssets.id, { onDelete: "cascade" }),
   merchantId: text("merchant_id").notNull(),
+});
+
+export const productScenes = pgTable("product_scenes", {
+  productId: text("product_id").primaryKey(),
+  scene: jsonb("scene").notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const generationAttempts = pgTable(

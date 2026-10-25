@@ -8,6 +8,8 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RotateCcw, ZoomIn, ZoomOut, Palette, Camera, Download, X, Play, Pause, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { worldUnitsPerCm } from "@/lib/scenes/scale";
+import type { ViewerContext } from "./viewer-context";
 import {
   applyBackdrop,
   disposeBackdrop,
@@ -31,6 +33,10 @@ interface ModelViewerProps {
   captureName?: string;
   onFirstFrame?: (image: Blob) => void;
   onUseAsThumbnail?: (image: Blob) => Promise<void>;
+  initialBackdrop?: BackdropMode;
+  onBackdropChange?: (mode: BackdropMode) => void;
+  onReady?: (context: ViewerContext) => void | (() => void);
+  renderOverlay?: (context: ViewerContext | null) => React.ReactNode;
 }
 
 const THUMBNAIL_MAX_SIDE = 720;
@@ -61,12 +67,16 @@ export function ModelViewer({
   captureName = "product",
   onFirstFrame,
   onUseAsThumbnail,
+  initialBackdrop,
+  onBackdropChange,
+  onReady,
+  renderOverlay,
 }: ModelViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [bgMode, setBgMode] = useState<BackdropMode>("auto");
+  const [bgMode, setBgMode] = useState<BackdropMode>(initialBackdrop ?? "auto");
   const [menuOpen, setMenuOpen] = useState(false);
   const [productTone, setProductTone] = useState<ProductTone | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
@@ -75,6 +85,9 @@ export function ModelViewer({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const onFirstFrameRef = useRef(onFirstFrame);
+  const onReadyRef = useRef(onReady);
+  const readyCleanupRef = useRef<(() => void) | null>(null);
+  const [viewerContext, setViewerContext] = useState<ViewerContext | null>(null);
   const firstFrameSent = useRef(false);
   const [capture, setCapture] = useState<Capture | null>(null);
   const [savingThumb, setSavingThumb] = useState(false);
@@ -257,6 +270,18 @@ export function ModelViewer({
         });
 
         scene.add(currentModel);
+
+        const context: ViewerContext = {
+          scene,
+          camera,
+          renderer,
+          controls,
+          container,
+          worldPerCm: worldUnitsPerCm({ widthMm, depthMm, heightMm }),
+        };
+        const cleanup = onReadyRef.current?.(context);
+        readyCleanupRef.current = typeof cleanup === "function" ? cleanup : null;
+        setViewerContext(context);
         setProductTone(extractProductTone(currentModel));
         setLoading(false);
       },
@@ -297,6 +322,9 @@ export function ModelViewer({
     // 9. Cleanup
     return () => {
       isMounted = false;
+      readyCleanupRef.current?.();
+      readyCleanupRef.current = null;
+      setViewerContext(null);
       window.removeEventListener("resize", handleResize);
       cancelAnimationFrame(animationFrameId);
 
@@ -327,7 +355,7 @@ export function ModelViewer({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [modelUrl]);
+  }, [modelUrl, widthMm, depthMm, heightMm]);
 
   useEffect(() => {
     bgModeRef.current = bgMode;
@@ -381,6 +409,10 @@ export function ModelViewer({
   }, [onFirstFrame]);
 
   useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+
+  useEffect(() => {
     if (loading || loadError || !onFirstFrameRef.current) return;
     const frame = requestAnimationFrame(() =>
       requestAnimationFrame(async () => {
@@ -431,6 +463,8 @@ export function ModelViewer({
         ref={mountRef}
         className="w-full h-full flex-1"
       />
+
+      {renderOverlay?.(viewerContext)}
 
       {/* Loading Overlay */}
       {loading && (
@@ -515,6 +549,7 @@ export function ModelViewer({
                   className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-stone-700 hover:bg-stone-100"
                   onClick={() => {
                     setBgMode(option.value);
+                    onBackdropChange?.(option.value);
                     setMenuOpen(false);
                   }}
                 >
