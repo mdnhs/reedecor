@@ -40,6 +40,12 @@ function lightnessOf(css: string): number {
   return Number(match![3]);
 }
 
+function hslParts(css: string) {
+  const match = css.match(/hsl\((\d+) (\d+)% (\d+)%/);
+  expect(match).not.toBeNull();
+  return { h: Number(match![1]), s: Number(match![2]), l: Number(match![3]) };
+}
+
 describe("studio backdrop presets", () => {
   const modes = STUDIO_PRESETS.map((preset) => preset.mode);
 
@@ -91,5 +97,44 @@ describe("studio backdrop presets", () => {
   it("keeps white and studio grey free of the new lighting effects", () => {
     expect(resolvePalette("white", null).spot).toBeUndefined();
     expect(resolvePalette("studio", null).grain).toBeUndefined();
+  });
+});
+
+describe("auto backdrop", () => {
+  const terracotta = { h: 0.04, s: 0.7, l: 0.4 };
+
+  it("is lit like a studio cyclorama when the product colour is known", () => {
+    const palette = resolvePalette("auto", terracotta);
+    expect(palette.spot?.alpha).toBeGreaterThan(0);
+    expect(palette.grain).toBe(true);
+    expect(lightnessOf(palette.floor)).toBeGreaterThan(lightnessOf(palette.top));
+  });
+
+  it("is lit even before the product colour is known, instead of a flat grey", () => {
+    const palette = resolvePalette("auto", null);
+    expect(palette.spot).toBeDefined();
+    expect(palette.grain).toBe(true);
+  });
+
+  it("sits opposite the product hue so the product stands out", () => {
+    const { h } = hslParts(resolvePalette("auto", terracotta).top);
+    expect(Math.abs(h - 194)).toBeLessThanOrEqual(3);
+  });
+
+  it("is lighter behind a dark product than behind a light one", () => {
+    const behindDark = lightnessOf(resolvePalette("auto", { h: 0.98, s: 0.6, l: 0.2 }).top);
+    const behindLight = lightnessOf(resolvePalette("auto", { h: 0.11, s: 0.1, l: 0.9 }).top);
+    expect(behindDark).toBeGreaterThan(behindLight);
+  });
+
+  it("carries more colour behind a saturated product than behind a grey one", () => {
+    const saturated = hslParts(resolvePalette("auto", terracotta).top).s;
+    const grey = hslParts(resolvePalette("auto", { h: 0, s: 0, l: 0.5 }).top).s;
+    expect(saturated).toBeGreaterThan(grey);
+  });
+
+  it("keeps the backdrop muted enough to read as a wall", () => {
+    const { s } = hslParts(resolvePalette("auto", { h: 0.04, s: 1, l: 0.4 }).top);
+    expect(s).toBeLessThanOrEqual(32);
   });
 });

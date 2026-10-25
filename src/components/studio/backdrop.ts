@@ -91,16 +91,19 @@ export function extractProductTone(model: THREE.Object3D): ProductTone | null {
 
 const hsl = hslCss;
 
-// Cool-leaning neutral opposite the product hue so the product's own colour pops; lightness flips with product lightness for contrast
-function autoPalette(tone: ProductTone): BackdropPalette {
-  const hue = (tone.h + 0.5) % 1;
-  const sat = 0.04 + tone.s * 0.1;
-  const base = tone.l < 0.35 ? 0.82 : tone.l > 0.7 ? 0.66 : 0.76;
-  return {
-    top: hsl(hue, sat, base - 0.08),
-    floor: hsl(hue, sat, base + 0.06),
-    edge: hsl(hue, sat, base - 0.2),
-  };
+const AUTO_MAX_SATURATION = 0.32;
+const AUTO_NEUTRAL = { h: 0.6, s: 0.03, l: 0.72 };
+
+// Muted tint opposite the product hue so the product's own colour pops; lightness flips with product lightness for contrast
+function autoPalette(tone: ProductTone | null): BackdropPalette {
+  if (!tone) return studioPresetPalette(AUTO_NEUTRAL);
+
+  const colourful = tone.s > 0.08;
+  return studioPresetPalette({
+    h: (tone.h + 0.5) % 1,
+    s: colourful ? Math.min(AUTO_MAX_SATURATION, 0.1 + tone.s * 0.2) : 0.04,
+    l: tone.l < 0.35 ? 0.8 : tone.l > 0.7 ? 0.58 : 0.7,
+  });
 }
 
 const PURE_WHITE: BackdropPalette = {
@@ -121,7 +124,7 @@ export function resolvePalette(mode: BackdropMode, tone: ProductTone | null): Ba
   if (mode === "white") return PURE_WHITE;
   const preset = STUDIO_PRESETS.find((p) => p.mode === mode);
   if (preset) return studioPresetPalette(preset);
-  if (mode === "auto" && tone) return autoPalette(tone);
+  if (mode === "auto") return autoPalette(tone);
   return neutralPalette(0.76);
 }
 
