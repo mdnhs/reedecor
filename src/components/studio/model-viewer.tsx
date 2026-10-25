@@ -535,16 +535,16 @@ export function ModelViewer({
             <div className="w-px h-4 bg-stone-200" />
             <div className="relative">
               <Button
-                size="sm"
+                size="icon"
                 variant="ghost"
-                className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
+                className="h-8 w-8 text-stone-600 hover:text-stone-900"
                 onClick={() => setMenuOpen((o) => !o)}
                 title="Change backdrop"
+                aria-label="Change backdrop"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
                 <Palette className="h-3.5 w-3.5" />
-                Backdrop
               </Button>
               {menuOpen && (
                 <div
@@ -575,15 +575,15 @@ export function ModelViewer({
         )}
         {showCapture && (
           <Button
-            size="sm"
+            size="icon"
             variant="ghost"
-            className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
+            className="h-8 w-8 text-stone-600 hover:text-stone-900"
             onClick={takeScreenshot}
             disabled={loading || !!loadError}
             title="Capture screenshot"
+            aria-label="Capture screenshot"
           >
             <Camera className="h-3.5 w-3.5" />
-            Capture
           </Button>
         )}
       </div>
