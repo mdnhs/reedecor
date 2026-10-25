@@ -105,6 +105,12 @@ function autoPalette(tone: ProductTone): BackdropPalette {
   };
 }
 
+const PURE_WHITE: BackdropPalette = {
+  top: hsl(0, 0, 1),
+  floor: hsl(0, 0, 1),
+  edge: hsl(0, 0, 1),
+};
+
 function neutralPalette(base: number): BackdropPalette {
   return {
     top: hsl(0, 0, base - 0.06),
@@ -113,8 +119,8 @@ function neutralPalette(base: number): BackdropPalette {
   };
 }
 
-function resolvePalette(mode: BackdropMode, tone: ProductTone | null): BackdropPalette {
-  if (mode === "white") return neutralPalette(0.96);
+export function resolvePalette(mode: BackdropMode, tone: ProductTone | null): BackdropPalette {
+  if (mode === "white") return PURE_WHITE;
   if (mode === "auto" && tone) return autoPalette(tone);
   return neutralPalette(0.76);
 }
