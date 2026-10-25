@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   assetsDb: { getVersionsWithAssets: vi.fn() },
   getProductById: vi.fn(),
   inMemoryGetById: vi.fn(),
+  getFlags: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/auth-service", () => ({
@@ -23,6 +24,11 @@ vi.mock("@/lib/supabase/auth-service", () => ({
 vi.mock("@/lib/supabase/scenes-db", () => ({ scenesDb: mocks.scenesDb }));
 vi.mock("@/lib/supabase/assets-db", () => ({ assetsDb: mocks.assetsDb }));
 vi.mock("@/lib/supabase/db", () => ({ supabaseDb: { getProductById: mocks.getProductById } }));
+vi.mock("@/server/feature-service", () => ({
+  featureFlags: { getAll: mocks.getFlags },
+  featureOffResponse: (c: { json: (body: unknown, status: number) => Response }) =>
+    c.json({ success: false, error: "This feature is turned off by the administrator.", code: "feature_disabled" }, 403),
+}));
 vi.mock("@/server/demo-store", () => ({ inMemoryStore: { getById: mocks.inMemoryGetById } }));
 
 import { sceneRoutes } from "../src/server/scene-routes";
@@ -96,8 +102,20 @@ function put(token: string | null, body: unknown, id = "prod-1") {
 const plant = asset("plant");
 const proLamp = asset("lamp", { accessLevel: "pro" });
 
+const allOn = {
+  model_generation: true,
+  scene_editor: true,
+  room_builder: true,
+  customer_scene_view: true,
+  capture_thumbnails: true,
+  backdrop_menu: true,
+  wishlist: true,
+  whatsapp_contact: true,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getFlags.mockResolvedValue(allOn);
   mocks.validateSession.mockImplementation(async (token: string) => users[token] ?? null);
   mocks.getProductById.mockResolvedValue({ id: "prod-1", merchantId: "m-owner" });
   mocks.inMemoryGetById.mockReturnValue(null);
@@ -277,5 +295,78 @@ describe("room in the scene API", () => {
     mocks.scenesDb.get.mockResolvedValue(scene([item("a")]));
     const res = await put("owner-token", { ...scene([item("a")]), room });
     expect(res.status).toBe(200);
+  });
+});
+
+describe("feature flags on the scene routes", () => {
+  const room = { enabled: true, wallColor: "#e7e0d5", floorType: "oak" } as const;
+  const owner = "owner-token";
+
+  function get(token: string | null) {
+    return app.request("/api/products/prod-1/scene", token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+  }
+
+  it("refuses saving when the scene editor is off", async () => {
+    mocks.getFlags.mockResolvedValue({ ...allOn, scene_editor: false });
+    const res = await put(owner, scene([item("a")]));
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("feature_disabled");
+    expect(mocks.scenesDb.upsert).not.toHaveBeenCalled();
+  });
+
+  it("omits the room on read when the room builder is off", async () => {
+    mocks.getFlags.mockResolvedValue({ ...allOn, room_builder: false });
+    mocks.scenesDb.get.mockResolvedValue({ ...scene([item("a")]), room });
+    const json = await (await get(null)).json();
+    expect("room" in json.data).toBe(false);
+    expect(json.data.items).toHaveLength(1);
+  });
+
+  it("keeps the stored room and ignores the body room when the room builder is off", async () => {
+    mocks.getFlags.mockResolvedValue({ ...allOn, room_builder: false });
+    const stored = { enabled: true, wallColor: "#ffffff", floorType: "tile" } as const;
+    mocks.scenesDb.get.mockResolvedValue({ ...scene([item("a")]), room: stored });
+    const res = await put(owner, { ...scene([item("a")]), room });
+    expect(res.status).toBe(200);
+    expect(mocks.scenesDb.upsert).toHaveBeenCalledWith(
+      "prod-1",
+      { ...scene([item("a")]), room: stored },
+      "m-owner"
+    );
+    expect("room" in (await res.json()).data).toBe(false);
+  });
+
+  it("stores no room on a first save when the room builder is off", async () => {
+    mocks.getFlags.mockResolvedValue({ ...allOn, room_builder: false });
+    await put(owner, { ...scene([item("a")]), room });
+    expect(mocks.scenesDb.upsert).toHaveBeenCalledWith("prod-1", scene([item("a")]), "m-owner");
+  });
+
+  describe("with styled scenes for customers off", () => {
+    beforeEach(() => {
+      mocks.getFlags.mockResolvedValue({ ...allOn, customer_scene_view: false });
+      mocks.scenesDb.get.mockResolvedValue({ ...scene([item("a")], "studio"), room });
+    });
+
+    it("shows anonymous visitors and customers the empty scene", async () => {
+      for (const token of [null, "customer-token", "other-token"]) {
+        const json = await (await get(token)).json();
+        expect(json.data).toEqual({ schemaVersion: 1, backdrop: "auto", items: [] });
+      }
+    });
+
+    it("still shows the real scene to the owner and to an admin", async () => {
+      for (const token of [owner, "admin-token"]) {
+        const json = await (await get(token)).json();
+        expect(json.data.items).toHaveLength(1);
+        expect(json.data.backdrop).toBe("studio");
+      }
+    });
+
+    it("shows the owner the empty scene when the scene editor is also off", async () => {
+      mocks.getFlags.mockResolvedValue({ ...allOn, customer_scene_view: false, scene_editor: false });
+      const json = await (await get(owner)).json();
+      expect(json.data.items).toEqual([]);
+    });
   });
 });

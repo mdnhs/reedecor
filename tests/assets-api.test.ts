@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   uploadAssetFile: vi.fn(),
   removeAssetFiles: vi.fn(),
   optimizeGlbBuffer: vi.fn(),
+  getFlags: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/auth-service", () => ({
@@ -33,6 +34,11 @@ vi.mock("@/lib/storage/supabase-storage", () => ({
     uploadAssetFile: mocks.uploadAssetFile,
     removeAssetFiles: mocks.removeAssetFiles,
   },
+}));
+vi.mock("@/server/feature-service", () => ({
+  featureFlags: { getAll: mocks.getFlags },
+  featureOffResponse: (c: { json: (body: unknown, status: number) => Response }) =>
+    c.json({ success: false, error: "This feature is turned off by the administrator.", code: "feature_disabled" }, 403),
 }));
 vi.mock("@/lib/storage/glb-optimizer", () => ({
   optimizeGlbBuffer: mocks.optimizeGlbBuffer,
@@ -126,6 +132,7 @@ beforeEach(() => {
   });
   mocks.assetsDb.createAsset.mockResolvedValue(asset());
   mocks.removeAssetFiles.mockResolvedValue(undefined);
+  mocks.getFlags.mockResolvedValue({ scene_editor: true });
 });
 
 describe("admin asset routes", () => {
@@ -275,6 +282,13 @@ describe("merchant asset listing", () => {
     const res = await app.request("/api/assets", as("free-token"));
     const json = await res.json();
     expect(json.categories).toEqual([{ id: "cat-1", name: "Plants", icon: "leaf", sortOrder: 0 }]);
+  });
+
+  it("refuses the merchant asset list when the scene editor is off", async () => {
+    mocks.getFlags.mockResolvedValue({ scene_editor: false });
+    const res = await app.request("/api/assets", as("free-token"));
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("feature_disabled");
   });
 
   it("blocks customers", async () => {

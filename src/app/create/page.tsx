@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveProductImageToIDB } from "@/lib/storage/indexeddb-storage";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useFeature } from "@/lib/features/features-context";
+import { featureOffMessage } from "@/lib/features/catalog";
 import { ShieldAlert, Store } from "lucide-react";
 
 type AngleView = "front" | "back" | "left" | "right";
@@ -70,6 +72,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
 export default function CreateProductPage() {
   const router = useRouter();
   const { isCustomer, switchDemoRole } = useAuth();
+  const generationOn = useFeature("model_generation");
 
   // Form State
   const [name, setName] = useState("");
@@ -260,6 +263,21 @@ export default function CreateProductPage() {
       setSubmitting(false);
     }
   };
+
+  if (!generationOn) {
+    return (
+      <DashboardLayout
+        title="Create 3D Model — Turned Off"
+        subtitle="3D model generation is currently unavailable"
+      >
+        <Card className="max-w-lg mx-auto my-12 border-stone-200 bg-stone-50 text-center p-8 space-y-3">
+          <ShieldAlert className="h-7 w-7 mx-auto text-stone-500" />
+          <h2 className="text-lg font-bold text-stone-900">3D model generation is turned off</h2>
+          <p className="text-xs text-stone-600">{featureOffMessage} Existing models can still be viewed.</p>
+        </Card>
+      </DashboardLayout>
+    );
+  }
 
   if (isCustomer) {
     return (

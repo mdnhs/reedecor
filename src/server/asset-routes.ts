@@ -4,6 +4,7 @@ import { assetsDb } from "@/lib/supabase/assets-db";
 import { storageService } from "@/lib/storage/supabase-storage";
 import { optimizeGlbBuffer } from "@/lib/storage/glb-optimizer";
 import type { AppUser } from "@/lib/supabase/auth-service";
+import { featureFlags, featureOffResponse } from "./feature-service";
 import { toMerchantView } from "@/lib/assets/access";
 import { ASSET_CATEGORY_ICONS } from "@/lib/assets/types";
 import {
@@ -258,6 +259,8 @@ export function assetRoutes(getCurrentUser: GetCurrentUser) {
     if (user.role === "customer") {
       return fail(c, "Room assets are available to merchants and admins.", 403);
     }
+
+    if (!(await featureFlags.getAll()).scene_editor) return featureOffResponse(c);
 
     const [assets, categories] = await Promise.all([
       assetsDb.listAssets(),

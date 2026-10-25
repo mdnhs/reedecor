@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MerchantAssetView } from "@/lib/assets/types";
 import { roomsEqual, suggestWallColors, type RoomSettings } from "@/lib/scenes/room";
+import { useFeature } from "@/lib/features/features-context";
 import { MAX_SCENE_ITEMS, type ResolvedScene } from "@/lib/scenes/types";
 import type { BackdropMode } from "../backdrop";
 import type { ViewerContext } from "../viewer-context";
@@ -49,6 +50,7 @@ function isTyping(target: EventTarget | null): boolean {
 
 export function SceneEditor({ productId, context, backdrop, initialScene, onSaved, onLoaded }: SceneEditorProps) {
   const { assets, categories, loading, error } = useMerchantAssets();
+  const roomOn = useFeature("room_builder");
   const controllerRef = useRef<SceneController | null>(null);
   const [state, setState] = useState<ControllerState>({ selectedId: null, itemCount: 0, dirty: false });
   const [mode, setMode] = useState<EditorMode>("translate");
@@ -61,7 +63,8 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   const [savedRoom, setSavedRoom] = useState<RoomSettings | undefined>(initialScene.room);
   const [roomOpen, setRoomOpen] = useState(false);
   const roomRendererRef = useRef<RoomRenderer | null>(null);
-  const roomRef = useRef(room);
+  const effectiveRoom = roomOn ? room : undefined;
+  const roomRef = useRef(effectiveRoom);
   const assetsById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
   const assetsByIdRef = useRef(assetsById);
   const initialSceneRef = useRef(initialScene);
@@ -80,9 +83,9 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   }, [assetsById]);
 
   useEffect(() => {
-    roomRef.current = room;
-    roomRendererRef.current?.apply(room);
-  }, [room]);
+    roomRef.current = effectiveRoom;
+    roomRendererRef.current?.apply(effectiveRoom);
+  }, [effectiveRoom]);
 
   useEffect(() => {
     if (!context) return;
@@ -144,7 +147,8 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   );
   const atLimit = state.itemCount >= MAX_SCENE_ITEMS;
   const hasLockedItems = initialScene.items.some((item) => assetsById.get(item.assetId)?.locked);
-  const dirty = state.dirty || backdrop !== savedBackdrop || !roomsEqual(room, savedRoom);
+  const dirty =
+    state.dirty || backdrop !== savedBackdrop || (roomOn && !roomsEqual(room, savedRoom));
   const suggestions = useMemo(() => suggestWallColors(context?.productTone ?? null), [context]);
 
   const changeMode = (next: EditorMode) => {
@@ -167,7 +171,7 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
         body: JSON.stringify({
           schemaVersion: 1,
           backdrop: backdropAtSave,
-          ...(roomAtSave ? { room: roomAtSave } : {}),
+          ...(roomOn && roomAtSave ? { room: roomAtSave } : {}),
           items: controller.serialize(),
         }),
       });
@@ -207,13 +211,17 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
                 setRoomOpen(false);
                 setSearch("");
               }}
-              roomActive={roomOpen}
-              onOpenRoom={() => {
-                setRoomOpen((open) => !open);
-                setActiveCategoryId(null);
-              }}
+              roomActive={roomOn && roomOpen}
+              onOpenRoom={
+                roomOn
+                  ? () => {
+                      setRoomOpen((open) => !open);
+                      setActiveCategoryId(null);
+                    }
+                  : undefined
+              }
             />
-            {roomOpen && (
+            {roomOn && roomOpen && (
               <RoomPanel room={room} suggestions={suggestions} onChange={setRoom} onClose={() => setRoomOpen(false)} />
             )}
             {activeCategory && (

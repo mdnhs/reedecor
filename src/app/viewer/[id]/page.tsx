@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ModelViewer } from "@/components/studio/model-viewer";
 import { SceneEditor } from "@/components/studio/scene-editor/scene-editor";
 import { SceneView } from "@/components/studio/scene/scene-view";
+import { useFeature } from "@/lib/features/features-context";
 import type { BackdropMode } from "@/components/studio/backdrop";
 import { EMPTY_SCENE, type ResolvedScene } from "@/lib/scenes/types";
 import { StoredProduct } from "@/server/demo-store";
@@ -39,6 +40,12 @@ const EMPTY_SCENE_RESOLVED: ResolvedScene = { ...EMPTY_SCENE, items: [] };
 
 function ViewerContent({ id }: { id: string }) {
   const { user, isCustomer, isSaasAdmin, isLoading: authLoading } = useAuth();
+  const generationOn = useFeature("model_generation");
+  const sceneEditorOn = useFeature("scene_editor");
+  const captureOn = useFeature("capture_thumbnails");
+  const backdropOn = useFeature("backdrop_menu");
+  const wishlistOn = useFeature("wishlist");
+  const whatsappOn = useFeature("whatsapp_contact");
   const origin = useOrigin();
   const [product, setProduct] = useState<StoredProduct | null>(null);
   const [scene, setScene] = useState<ResolvedScene | null>(null);
@@ -111,7 +118,7 @@ function ViewerContent({ id }: { id: string }) {
   }, [id]);
 
   const canEditScene =
-    !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
+    sceneEditorOn && !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
 
   const sceneEnabled = product?.status === "completed";
 
@@ -366,7 +373,7 @@ function ViewerContent({ id }: { id: string }) {
               </Button>
             )}
 
-            {!isCustomer && product.status !== "processing" && (
+            {!isCustomer && generationOn && product.status !== "processing" && (
               <Button
                 onClick={handleRetry}
                 disabled={retrying}
@@ -401,9 +408,13 @@ function ViewerContent({ id }: { id: string }) {
                   heightMm={product.heightMm}
                   captureName={product.name}
                   onFirstFrame={
-                    product.thumbnailUrl ? undefined : (image) => void saveThumbnail(image).catch(() => {})
+                    product.thumbnailUrl || !captureOn
+                      ? undefined
+                      : (image) => void saveThumbnail(image).catch(() => {})
                   }
-                  onUseAsThumbnail={isCustomer ? undefined : saveThumbnail}
+                  onUseAsThumbnail={isCustomer || !captureOn ? undefined : saveThumbnail}
+                  showCapture={captureOn}
+                  showBackdropMenu={backdropOn}
                   initialBackdrop={scene?.backdrop}
                   onBackdropChange={setBackdrop}
                   captureReady={sceneRendered || (canEditScene && !!sceneError)}
@@ -519,10 +530,12 @@ function ViewerContent({ id }: { id: string }) {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                    <Button onClick={handleRetry} disabled={retrying} className="gap-2 text-xs">
-                      <RotateCcw className="h-4 w-4" />
-                      <span>{isCancelled ? "Restart Generation" : "Retry Generation"}</span>
-                    </Button>
+                    {generationOn && (
+                      <Button onClick={handleRetry} disabled={retrying} className="gap-2 text-xs">
+                        <RotateCcw className="h-4 w-4" />
+                        <span>{isCancelled ? "Restart Generation" : "Retry Generation"}</span>
+                      </Button>
+                    )}
                     <Link href="/products">
                       <Button variant="outline" size="sm" className="gap-1.5 text-xs">
                         <ArrowLeft className="h-3.5 w-3.5" />
@@ -544,10 +557,12 @@ function ViewerContent({ id }: { id: string }) {
                   <p className="text-xs text-stone-500">
                     All angle views are uploaded. Initiate Meshy AI 3D generation.
                   </p>
-                  <Button onClick={handleRetry} disabled={retrying} className="gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    <span>Start 3D Generation</span>
-                  </Button>
+                  {generationOn && (
+                    <Button onClick={handleRetry} disabled={retrying} className="gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Start 3D Generation</span>
+                    </Button>
+                  )}
                 </div>
               </Card>
             )}
@@ -642,54 +657,62 @@ function ViewerContent({ id }: { id: string }) {
 
             {/* Direct Merchant WhatsApp Ordering Card */}
             <Card className="border-emerald-200/80 bg-emerald-50/40 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-[#25D366]" />
-                  <h4 className="text-xs font-bold text-emerald-900">Order via WhatsApp</h4>
-                </div>
-                <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium">
-                  Direct to Merchant
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-600 leading-relaxed">
-                Connect directly with the merchant with pre-filled dimensions, purchase price, and 3D preview link.
-              </p>
+              {whatsappOn && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                      <h4 className="text-xs font-bold text-emerald-900">Order via WhatsApp</h4>
+                    </div>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium">
+                      Direct to Merchant
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-600 leading-relaxed">
+                    Connect directly with the merchant with pre-filled dimensions, purchase price, and 3D preview link.
+                  </p>
+                </>
+              )}
               <div className="flex items-center gap-2">
-                <a
-                  href={buildProductWhatsAppUrl("01865818044", {
-                    id: product.id,
-                    name: product.name,
-                    category: product.category,
-                    priceBdt: product.priceBdt || 18500,
-                    widthMm: product.widthMm,
-                    depthMm: product.depthMm,
-                    heightMm: product.heightMm,
-                    storeUrl: origin ? `${origin}/viewer/${product.id}` : undefined,
-                  })}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1"
-                >
-                  <Button
-                    size="sm"
-                    className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white text-xs h-9 gap-1.5 shadow-xs font-medium"
+                {whatsappOn && (
+                  <a
+                    href={buildProductWhatsAppUrl("01865818044", {
+                      id: product.id,
+                      name: product.name,
+                      category: product.category,
+                      priceBdt: product.priceBdt || 18500,
+                      widthMm: product.widthMm,
+                      depthMm: product.depthMm,
+                      heightMm: product.heightMm,
+                      storeUrl: origin ? `${origin}/viewer/${product.id}` : undefined,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Inquire on WhatsApp</span>
-                  </Button>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleToggleWishlist}
-                  className={`h-9 px-3 rounded-md border flex items-center justify-center transition-colors ${
-                    isWishlisted
-                      ? "bg-rose-50 border-rose-200 text-rose-600"
-                      : "bg-white border-stone-200 text-stone-600 hover:text-rose-600 hover:bg-stone-50"
-                  }`}
-                  title={isWishlisted ? "In Wishlist" : "Save to Wishlist"}
-                >
-                  <Heart className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
-                </button>
+                    <Button
+                      size="sm"
+                      className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white text-xs h-9 gap-1.5 shadow-xs font-medium"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Inquire on WhatsApp</span>
+                    </Button>
+                  </a>
+                )}
+                {wishlistOn && (
+                  <button
+                    type="button"
+                    onClick={handleToggleWishlist}
+                    className={`h-9 px-3 rounded-md border flex items-center justify-center transition-colors ${
+                      isWishlisted
+                        ? "bg-rose-50 border-rose-200 text-rose-600"
+                        : "bg-white border-stone-200 text-stone-600 hover:text-rose-600 hover:bg-stone-50"
+                    }`}
+                    title={isWishlisted ? "In Wishlist" : "Save to Wishlist"}
+                  >
+                    <Heart className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`} />
+                  </button>
+                )}
               </div>
               <Link
                 href={`/store/${product.merchantId || "demo-merchant-001"}`}

@@ -25,9 +25,13 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
 import { getProductThumbnail } from "@/lib/product-thumbnail";
+import { useFeature } from "@/lib/features/features-context";
 
 export default function MyProductsPage() {
   const { user, isCustomer } = useAuth();
+  const wishlistOn = useFeature("wishlist");
+  const whatsappOn = useFeature("whatsapp_contact");
+  const generationOn = useFeature("model_generation");
   const origin = useOrigin();
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,7 +195,7 @@ export default function MyProductsPage() {
               </Button>
             </Link>
 
-            {!isCustomer && (
+            {!isCustomer && generationOn && (
               <Link href="/create">
                 <Button size="sm" className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs h-9">
                   <Plus className="h-4 w-4" />
@@ -304,27 +308,28 @@ export default function MyProductsPage() {
                       )}
 
                       <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleToggleWishlist(product.id);
-                          }}
-                          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                            isWishlisted
-                              ? "bg-rose-50 text-rose-600 shadow-xs"
-                              : "bg-white/80 text-stone-600 hover:bg-white hover:text-rose-600 shadow-2xs"
-                          }`}
-                          title={isWishlisted ? "In Wishlist" : "Add to Wishlist"}
-                        >
-                          <Heart
-                            className={`w-3.5 h-3.5 ${
-                              isWishlisted ? "fill-rose-500 text-rose-500" : ""
+                        {wishlistOn && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleToggleWishlist(product.id);
+                            }}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                              isWishlisted
+                                ? "bg-rose-50 text-rose-600 shadow-xs"
+                                : "bg-white/80 text-stone-600 hover:bg-white hover:text-rose-600 shadow-2xs"
                             }`}
-                          />
-                        </button>
-
+                            title={isWishlisted ? "In Wishlist" : "Add to Wishlist"}
+                          >
+                            <Heart
+                              className={`w-3.5 h-3.5 ${
+                                isWishlisted ? "fill-rose-500 text-rose-500" : ""
+                              }`}
+                            />
+                          </button>
+                        )}
                         <Badge
                           variant={
                             product.status === "completed"
@@ -380,18 +385,19 @@ export default function MyProductsPage() {
 
                   {/* Actions Bar */}
                   <div className="p-4 pt-0 border-t border-stone-100 mt-2 flex items-center justify-between">
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
-                      title="Send WhatsApp message about this piece"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
-                      <span>WhatsApp</span>
-                    </a>
-
+                    {whatsappOn && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
+                        title="Send WhatsApp message about this piece"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
                     {!isCustomer && (
                       <Button
                         size="icon"

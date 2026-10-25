@@ -28,6 +28,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl, cleanWhatsAppNumber } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
 import { getProductThumbnail } from "@/lib/product-thumbnail";
+import { useFeature } from "@/lib/features/features-context";
 
 interface MerchantProfileData {
   id: string;
@@ -51,6 +52,8 @@ export default function PublicStorefrontPage({
   const merchantId = resolvedParams.merchantId;
 
   const { user } = useAuth();
+  const wishlistOn = useFeature("wishlist");
+  const whatsappOn = useFeature("whatsapp_contact");
   const origin = useOrigin();
   const [profile, setProfile] = useState<MerchantProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -273,15 +276,17 @@ export default function PublicStorefrontPage({
               )}
             </Button>
 
-            <a
-              href={merchantGeneralWaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>WhatsApp Store</span>
-            </a>
+            {whatsappOn && (
+              <a
+                href={merchantGeneralWaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>WhatsApp Store</span>
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -363,15 +368,17 @@ export default function PublicStorefrontPage({
                 )}
               </Button>
 
-              <a
-                href={merchantGeneralWaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-md font-medium text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span>Contact on WhatsApp</span>
-              </a>
+              {whatsappOn && (
+                <a
+                  href={merchantGeneralWaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-md font-medium text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Contact on WhatsApp</span>
+                </a>
+              )}
             </div>
           </div>
         </section>
@@ -493,24 +500,26 @@ export default function PublicStorefrontPage({
                         </div>
 
                         {/* Wishlist Heart Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleToggleWishlist(prod.id);
-                          }}
-                          className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                            isWishlisted
-                              ? "bg-rose-50 text-rose-600 shadow-sm"
-                              : "bg-white/80 text-neutral-600 hover:bg-white hover:text-rose-600 shadow-xs"
-                          }`}
-                          title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
-                        >
-                          <Heart
-                            className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
-                          />
-                        </button>
+                        {wishlistOn && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleToggleWishlist(prod.id);
+                            }}
+                            className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                              isWishlisted
+                                ? "bg-rose-50 text-rose-600 shadow-sm"
+                                : "bg-white/80 text-neutral-600 hover:bg-white hover:text-rose-600 shadow-xs"
+                            }`}
+                            title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+                          >
+                            <Heart
+                              className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
+                            />
+                          </button>
+                        )}
                       </div>
 
                       {/* Content */}
@@ -546,23 +555,25 @@ export default function PublicStorefrontPage({
                     </Link>
 
                     {/* Action Footer */}
-                    <div className="p-4 pt-0">
-                      <a
-                        href={productWaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          size="sm"
-                          className="w-full text-xs h-9 bg-[#25D366] hover:bg-[#20ba59] text-white gap-1.5 shadow-xs"
+                    {whatsappOn && (
+                      <div className="p-4 pt-0">
+                        <a
+                          href={productWaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Order via WhatsApp</span>
-                        </Button>
-                      </a>
-                    </div>
+                          <Button
+                            size="sm"
+                            className="w-full text-xs h-9 bg-[#25D366] hover:bg-[#20ba59] text-white gap-1.5 shadow-xs"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Order via WhatsApp</span>
+                          </Button>
+                        </a>
+                      </div>
+                    )}
                   </Card>
                 );
               })}

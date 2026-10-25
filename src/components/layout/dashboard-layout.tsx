@@ -20,9 +20,11 @@ import {
   X,
   Store,
   Shapes,
+  ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useFeature } from "@/lib/features/features-context";
 import { Button } from "@/components/ui/button";
 
 interface DashboardLayoutProps {
@@ -36,6 +38,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, role, isSaasAdmin, isCustomer, logout, switchDemoRole } = useAuth();
+  const generationOn = useFeature("model_generation");
 
   const merchantStoreId = user?.id || "demo-merchant-001";
 
@@ -53,7 +56,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
       href: "/create",
       icon: PlusCircle,
       highlight: true,
-      show: !isCustomer,
+      show: !isCustomer && generationOn,
     },
     {
       name: "Credits & Usage",
@@ -76,6 +79,14 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
       name: "Room Assets",
       href: "/admin/assets",
       icon: Shapes,
+      adminOnly: true,
+      show: isSaasAdmin,
+      badge: "",
+    },
+    {
+      name: "Features",
+      href: "/admin/features",
+      icon: ToggleRight,
       adminOnly: true,
       show: isSaasAdmin,
       badge: "",
@@ -485,7 +496,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
                   <span className="hidden sm:inline">Admin RBAC</span>
                 </Button>
               </Link>
-            ) : !isCustomer ? (
+            ) : !isCustomer && generationOn ? (
               <Link href="/create">
                 <Button size="sm" className="h-8 gap-1.5 text-xs bg-amber-700 hover:bg-amber-800 text-white shadow-xs">
                   <Plus className="h-3.5 w-3.5" />

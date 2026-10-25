@@ -38,6 +38,8 @@ interface ModelViewerProps {
   onReady?: (context: ViewerContext) => void | (() => void);
   renderOverlay?: (context: ViewerContext | null) => React.ReactNode;
   captureReady?: boolean;
+  showBackdropMenu?: boolean;
+  showCapture?: boolean;
 }
 
 const THUMBNAIL_MAX_SIDE = 720;
@@ -73,6 +75,8 @@ export function ModelViewer({
   onReady,
   renderOverlay,
   captureReady = true,
+  showBackdropMenu = true,
+  showCapture = true,
 }: ModelViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -526,56 +530,62 @@ export function ModelViewer({
         >
           <ZoomOut className="h-3.5 w-3.5" />
         </Button>
-        <div className="w-px h-4 bg-stone-200" />
-        <div className="relative">
+        {showBackdropMenu && (
+          <>
+            <div className="w-px h-4 bg-stone-200" />
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
+                onClick={() => setMenuOpen((o) => !o)}
+                title="Change backdrop"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
+                <Palette className="h-3.5 w-3.5" />
+                Backdrop
+              </Button>
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-2 w-48 p-1 rounded-xl bg-white border border-stone-200/90 shadow-md"
+                >
+                  <p className="px-2.5 py-1.5 text-xs font-bold text-stone-900">Backdrop</p>
+                  {BACKDROP_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      role="menuitemradio"
+                      aria-checked={bgMode === option.value}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-stone-700 hover:bg-stone-100"
+                      onClick={() => {
+                        setBgMode(option.value);
+                        onBackdropChange?.(option.value);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      {option.label}
+                      {bgMode === option.value && <Check className="h-3.5 w-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        {showCapture && (
           <Button
             size="sm"
             variant="ghost"
             className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
-            onClick={() => setMenuOpen((o) => !o)}
-            title="Change backdrop"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
+            onClick={takeScreenshot}
+            disabled={loading || !!loadError}
+            title="Capture screenshot"
           >
-            <Palette className="h-3.5 w-3.5" />
-            Backdrop
+            <Camera className="h-3.5 w-3.5" />
+            Capture
           </Button>
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-full mt-2 w-48 p-1 rounded-xl bg-white border border-stone-200/90 shadow-md"
-            >
-              <p className="px-2.5 py-1.5 text-xs font-bold text-stone-900">Backdrop</p>
-              {BACKDROP_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  role="menuitemradio"
-                  aria-checked={bgMode === option.value}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-stone-700 hover:bg-stone-100"
-                  onClick={() => {
-                    setBgMode(option.value);
-                    onBackdropChange?.(option.value);
-                    setMenuOpen(false);
-                  }}
-                >
-                  {option.label}
-                  {bgMode === option.value && <Check className="h-3.5 w-3.5" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
-          onClick={takeScreenshot}
-          disabled={loading || !!loadError}
-          title="Capture screenshot"
-        >
-          <Camera className="h-3.5 w-3.5" />
-          Capture
-        </Button>
+        )}
       </div>
 
       {capture && (

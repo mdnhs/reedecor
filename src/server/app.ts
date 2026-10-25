@@ -10,6 +10,8 @@ import { DEMO_MERCHANT } from "@/lib/constants";
 import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
 import { assetRoutes } from "./asset-routes";
 import { sceneRoutes } from "./scene-routes";
+import { featureRoutes } from "./feature-routes";
+import { featureFlags, featureOffResponse, requireFeature } from "./feature-service";
 
 export const app = new Hono().basePath("/api");
 
@@ -350,6 +352,7 @@ app.delete("/admin/users/:id", async (c) => {
 
 app.route("/", assetRoutes(getCurrentUser));
 app.route("/", sceneRoutes(getCurrentUser));
+app.route("/", featureRoutes(getCurrentUser));
 
 // ---------------------------------------------------------------------------
 // Product & Studio Endpoints (With RBAC Guards)
@@ -376,7 +379,7 @@ app.get("/products/:id", async (c) => {
 });
 
 // Create Product (Merchant or SaaS Admin Only)
-app.post("/products", zValidator("json", createProductSchema), async (c) => {
+app.post("/products", requireFeature("model_generation"), zValidator("json", createProductSchema), async (c) => {
   const currentUser = await getCurrentUser(c);
   if (currentUser && currentUser.role === "customer") {
     return c.json(
@@ -428,6 +431,7 @@ const THUMBNAIL_MAX_BYTES = 1.5 * 1024 * 1024;
 
 // Set Product Thumbnail: anyone may set the first (auto) thumbnail, replacing it needs the owner or an admin
 app.post("/products/:id/thumbnail", async (c) => {
+  if (!(await featureFlags.isEnabled("capture_thumbnails"))) return featureOffResponse(c);
   const currentUser = await getCurrentUser(c);
   const id = c.req.param("id");
   const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
@@ -496,6 +500,7 @@ app.delete("/products/:id", async (c) => {
 
 // Start Generation (Meshy AI Multi-Image) - Merchant or SaaS Admin Only
 app.post("/products/:id/generate", async (c) => {
+  if (!(await featureFlags.isEnabled("model_generation"))) return featureOffResponse(c);
   const currentUser = await getCurrentUser(c);
   if (currentUser && currentUser.role === "customer") {
     return c.json(
@@ -794,6 +799,7 @@ app.get("/products/:id/status", async (c) => {
 
 // Retry Generation (Merchant or SaaS Admin Only)
 app.post("/products/:id/retry", async (c) => {
+  if (!(await featureFlags.isEnabled("model_generation"))) return featureOffResponse(c);
   const currentUser = await getCurrentUser(c);
   if (currentUser && currentUser.role === "customer") {
     return c.json(
@@ -1200,7 +1206,7 @@ app.delete("/merchants/:id/follow", async (c) => {
 // 1. Get current customer wishlist product IDs
 app.get("/wishlists", async (c) => {
   const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
+  if (!currentUser || !(await featureFlags.isEnabled("wishlist"))) {
     return c.json({ success: true, data: [] });
   }
 
@@ -1210,6 +1216,7 @@ app.get("/wishlists", async (c) => {
 
 // 2. Toggle item in wishlist
 app.post("/wishlists/:productId/toggle", async (c) => {
+  if (!(await featureFlags.isEnabled("wishlist"))) return featureOffResponse(c);
   const currentUser = await getCurrentUser(c);
   if (!currentUser) {
     return c.json({ success: false, error: "Authentication required for wishlist" }, 401);

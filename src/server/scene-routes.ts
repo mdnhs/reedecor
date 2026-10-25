@@ -4,6 +4,7 @@ import { scenesDb } from "@/lib/supabase/scenes-db";
 import { supabaseDb } from "@/lib/supabase/db";
 import { inMemoryStore } from "@/server/demo-store";
 import type { AppUser } from "@/lib/supabase/auth-service";
+import { featureFlags, featureOffResponse } from "./feature-service";
 import { sceneSchema } from "@/lib/scenes/schema";
 import { validateSceneSave } from "@/lib/scenes/rules";
 import { EMPTY_SCENE, type ResolvedScene, type SceneData } from "@/lib/scenes/types";
@@ -18,12 +19,12 @@ async function findProduct(id: string) {
   return (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
 }
 
-async function resolveScene(scene: SceneData): Promise<ResolvedScene> {
+async function resolveScene(scene: SceneData, includeRoom: boolean): Promise<ResolvedScene> {
   const versions = await assetsDb.getVersionsWithAssets(scene.items.map((item) => item.versionId));
   return {
     schemaVersion: 1,
     backdrop: scene.backdrop,
-    ...(scene.room ? { room: scene.room } : {}),
+    ...(includeRoom && scene.room ? { room: scene.room } : {}),
     items: scene.items.flatMap((item) => {
       const found = versions.get(item.versionId);
       if (!found) return [];
@@ -47,11 +48,20 @@ export function sceneRoutes(getCurrentUser: GetCurrentUser) {
 
   routes.get("/products/:id/scene", async (c) => {
     const id = c.req.param("id");
-    if (!(await findProduct(id))) return fail(c, "Product not found.", 404);
+    const product = await findProduct(id);
+    if (!product) return fail(c, "Product not found.", 404);
 
     try {
-      const scene = (await scenesDb.get(id)) ?? EMPTY_SCENE;
-      return c.json({ success: true, data: await resolveScene(scene) });
+      const flags = await featureFlags.getAll();
+      const user = await getCurrentUser(c);
+      const isEditor =
+        flags.scene_editor &&
+        !!user &&
+        (user.role === "saas_admin" || (user.role === "merchant" && product.merchantId === user.id));
+
+      const visible = flags.customer_scene_view || isEditor;
+      const scene = visible ? ((await scenesDb.get(id)) ?? EMPTY_SCENE) : EMPTY_SCENE;
+      return c.json({ success: true, data: await resolveScene(scene, flags.room_builder) });
     } catch (err) {
       const detail = err instanceof Error ? err.message : "unknown error";
       return fail(c, `Could not load scene: ${detail}`, 500);
@@ -64,6 +74,9 @@ export function sceneRoutes(getCurrentUser: GetCurrentUser) {
     if (user.role !== "saas_admin" && user.role !== "merchant") {
       return fail(c, "Only merchants and admins can edit a scene.", 403);
     }
+
+    const flags = await featureFlags.getAll();
+    if (!flags.scene_editor) return featureOffResponse(c);
 
     const id = c.req.param("id");
     const product = await findProduct(id);
@@ -80,11 +93,19 @@ export function sceneRoutes(getCurrentUser: GetCurrentUser) {
         scenesDb.get(id),
         assetsDb.getVersionsWithAssets(parsed.data.items.map((item) => item.versionId)),
       ]);
-      const check = validateSceneSave({ next: parsed.data, previous, versions, merchant: user });
+      const room = flags.room_builder ? parsed.data.room : previous?.room;
+      const next: SceneData = {
+        schemaVersion: 1,
+        backdrop: parsed.data.backdrop,
+        items: parsed.data.items,
+        ...(room ? { room } : {}),
+      };
+
+      const check = validateSceneSave({ next, previous, versions, merchant: user });
       if (!check.ok) return fail(c, check.error, check.status);
 
-      await scenesDb.upsert(id, parsed.data, user.id);
-      return c.json({ success: true, data: await resolveScene(parsed.data) });
+      await scenesDb.upsert(id, next, user.id);
+      return c.json({ success: true, data: await resolveScene(next, flags.room_builder) });
     } catch (err) {
       const detail = err instanceof Error ? err.message : "unknown error";
       return fail(c, `Could not save scene: ${detail}`, 500);

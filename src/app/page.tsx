@@ -11,9 +11,11 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { SectionCards } from "@/components/dashboard/section-cards";
 import { ChartAreaInteractive } from "@/components/dashboard/chart-area-interactive";
 import { DataTable } from "@/components/dashboard/data-table";
+import { useFeature } from "@/lib/features/features-context";
 
 export default function OverviewPage() {
   const { isSaasAdmin, isCustomer } = useAuth();
+  const generationOn = useFeature("model_generation");
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +80,7 @@ export default function OverviewPage() {
                   </Button>
                 </Link>
               )}
-              {!isCustomer && (
+              {!isCustomer && generationOn && (
                 <Link href="/create">
                   <Button className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs">
                     <Plus className="h-4 w-4" />
