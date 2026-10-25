@@ -6,10 +6,11 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { RotateCcw, ZoomIn, ZoomOut, Palette, Camera, Download, X, Play, Pause, Check } from "lucide-react";
+import { RotateCcw, ZoomIn, ZoomOut, Palette, Camera, Download, X, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { worldUnitsPerCm } from "@/lib/scenes/scale";
 import type { ViewerContext } from "./viewer-context";
+import { BackdropMenu } from "./backdrop-menu";
 import {
   applyBackdrop,
   disposeBackdrop,
@@ -17,13 +18,6 @@ import {
   type BackdropMode,
   type ProductTone,
 } from "./backdrop";
-
-const BACKDROP_OPTIONS: { value: BackdropMode; label: string }[] = [
-  { value: "auto", label: "Auto (product color)" },
-  { value: "studio", label: "Studio grey" },
-  { value: "white", label: "White" },
-  { value: "transparent", label: "Transparent" },
-];
 
 interface ModelViewerProps {
   modelUrl: string;
@@ -547,28 +541,14 @@ export function ModelViewer({
                 <Palette className="h-3.5 w-3.5" />
               </Button>
               {menuOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full mt-2 w-48 p-1 rounded-xl bg-white border border-stone-200/90 shadow-md"
-                >
-                  <p className="px-2.5 py-1.5 text-xs font-bold text-stone-900">Backdrop</p>
-                  {BACKDROP_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      role="menuitemradio"
-                      aria-checked={bgMode === option.value}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-stone-700 hover:bg-stone-100"
-                      onClick={() => {
-                        setBgMode(option.value);
-                        onBackdropChange?.(option.value);
-                        setMenuOpen(false);
-                      }}
-                    >
-                      {option.label}
-                      {bgMode === option.value && <Check className="h-3.5 w-3.5" />}
-                    </button>
-                  ))}
-                </div>
+                <BackdropMenu
+                  value={bgMode}
+                  onSelect={(mode) => {
+                    setBgMode(mode);
+                    onBackdropChange?.(mode);
+                    setMenuOpen(false);
+                  }}
+                />
               )}
             </div>
           </>

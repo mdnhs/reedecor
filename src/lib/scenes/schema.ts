@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BACKDROP_MODES } from "./backdrops";
 import { FLOOR_TYPES, isHexColor } from "./room";
 import { MAX_OFFSET_CM, MAX_SCENE_ITEMS, SCALE_RANGE } from "./types";
 
@@ -22,7 +23,7 @@ export const roomSchema = z.object({
 
 export const sceneSchema = z.object({
   schemaVersion: z.literal(1),
-  backdrop: z.enum(["auto", "studio", "white", "transparent"]),
+  backdrop: z.enum(BACKDROP_MODES),
   room: roomSchema.optional(),
   items: z
     .array(sceneItemSchema)

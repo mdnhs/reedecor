@@ -1,4 +1,4 @@
-import type { BackdropMode } from "@/components/studio/backdrop";
+import type { BackdropMode } from "./backdrops";
 import type { AssetPlacement } from "@/lib/assets/types";
 import type { RoomSettings } from "./room";
 

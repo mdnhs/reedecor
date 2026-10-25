@@ -1,6 +1,14 @@
 import * as THREE from "three";
+import {
+  STUDIO_PRESETS,
+  hslCss,
+  studioPresetPalette,
+  type BackdropMode,
+  type BackdropPalette,
+} from "@/lib/scenes/backdrops";
+import { seededRandom } from "./seeded-random";
 
-export type BackdropMode = "auto" | "studio" | "white" | "transparent";
+export type { BackdropMode };
 
 export interface ProductTone {
   h: number;
@@ -8,14 +16,7 @@ export interface ProductTone {
   l: number;
 }
 
-interface BackdropPalette {
-  top: string;
-  floor: string;
-  edge: string;
-}
-
 const SAMPLE_SIZE = 16;
-const CANVAS_SIZE = 512;
 
 function averageTextureColor(texture: THREE.Texture): THREE.Color | null {
   const image = texture.image as CanvasImageSource | undefined;
@@ -88,10 +89,7 @@ export function extractProductTone(model: THREE.Object3D): ProductTone | null {
   return hsl;
 }
 
-function hsl(h: number, s: number, l: number): string {
-  const clamp = (v: number) => Math.min(1, Math.max(0, v));
-  return `hsl(${Math.round(h * 360)} ${Math.round(clamp(s) * 100)}% ${Math.round(clamp(l) * 100)}%)`;
-}
+const hsl = hslCss;
 
 // Cool-leaning neutral opposite the product hue so the product's own colour pops; lightness flips with product lightness for contrast
 function autoPalette(tone: ProductTone): BackdropPalette {
@@ -121,36 +119,79 @@ function neutralPalette(base: number): BackdropPalette {
 
 export function resolvePalette(mode: BackdropMode, tone: ProductTone | null): BackdropPalette {
   if (mode === "white") return PURE_WHITE;
+  const preset = STUDIO_PRESETS.find((p) => p.mode === mode);
+  if (preset) return studioPresetPalette(preset);
   if (mode === "auto" && tone) return autoPalette(tone);
   return neutralPalette(0.76);
 }
 
-function createBackdropTexture({ top, floor, edge }: BackdropPalette): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = CANVAS_SIZE;
-  canvas.height = CANVAS_SIZE;
-  const ctx = canvas.getContext("2d")!;
+const CANVAS_PX = 1024;
+const VIGNETTE_ALPHA = 0.45;
+const GRAIN_AMPLITUDE = 5;
+const SPOT_CENTER_Y = 0.64;
+const SPOT_SQUASH = 0.55;
 
-  const wall = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
+function paintSpot(ctx: CanvasRenderingContext2D, spot: NonNullable<BackdropPalette["spot"]>) {
+  ctx.save();
+  ctx.translate(CANVAS_PX / 2, CANVAS_PX * SPOT_CENTER_Y);
+  ctx.scale(1, SPOT_SQUASH);
+  const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, CANVAS_PX * 0.5);
+  pool.addColorStop(0, spot.color.replace(")", ` / ${spot.alpha})`));
+  pool.addColorStop(1, spot.color.replace(")", " / 0)"));
+  ctx.fillStyle = pool;
+  ctx.fillRect(-CANVAS_PX, -CANVAS_PX, CANVAS_PX * 2, CANVAS_PX * 2);
+  ctx.restore();
+
+  const glow = ctx.createRadialGradient(CANVAS_PX / 2, CANVAS_PX * 0.36, 0, CANVAS_PX / 2, CANVAS_PX * 0.36, CANVAS_PX * 0.45);
+  glow.addColorStop(0, spot.color.replace(")", ` / ${spot.alpha * 0.35})`));
+  glow.addColorStop(1, spot.color.replace(")", " / 0)"));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+}
+
+function paintGrain(ctx: CanvasRenderingContext2D) {
+  const random = seededRandom(5);
+  const image = ctx.getImageData(0, 0, CANVAS_PX, CANVAS_PX);
+  for (let i = 0; i < image.data.length; i += 4) {
+    const noise = (random() - 0.5) * 2 * GRAIN_AMPLITUDE;
+    image.data[i] += noise;
+    image.data[i + 1] += noise;
+    image.data[i + 2] += noise;
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function createBackdropTexture({ top, floor, edge, spot, grain }: BackdropPalette): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = CANVAS_PX;
+  canvas.height = CANVAS_PX;
+  const ctx = canvas.getContext("2d", { willReadFrequently: !!grain })!;
+
+  const wall = ctx.createLinearGradient(0, 0, 0, CANVAS_PX);
   wall.addColorStop(0, top);
   wall.addColorStop(0.55, top);
   wall.addColorStop(1, floor);
   ctx.fillStyle = wall;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+
+  if (spot) paintSpot(ctx, spot);
 
   const vignette = ctx.createRadialGradient(
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE * 0.55,
-    CANVAS_SIZE * 0.25,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE * 0.55,
-    CANVAS_SIZE * 0.8
+    CANVAS_PX / 2,
+    CANVAS_PX * 0.55,
+    CANVAS_PX * 0.25,
+    CANVAS_PX / 2,
+    CANVAS_PX * 0.55,
+    CANVAS_PX * 0.8
   );
   vignette.addColorStop(0, edge.replace(")", " / 0)"));
   vignette.addColorStop(1, edge);
-  ctx.globalAlpha = 0.45;
+  ctx.globalAlpha = VIGNETTE_ALPHA;
   ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+  ctx.globalAlpha = 1;
+
+  if (grain) paintGrain(ctx);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
