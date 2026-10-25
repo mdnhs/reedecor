@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ROOM_SIZE_CM, type FloorType, type RoomSettings } from "@/lib/scenes/room";
 import type { ViewerContext } from "../viewer-context";
+import { STUDIO_FLOOR_NAME } from "../backdrop";
 import { createFloorTexture } from "./floor-textures";
 
 const FLOOR_ROUGHNESS = 0.85;
@@ -43,6 +44,9 @@ export class RoomRenderer {
     const ground = this.context.ground;
     ground.position.y = this.groundDefaults.y + GROUND_LIFT_CM * this.context.worldPerCm;
     (ground.material as THREE.ShadowMaterial).opacity = ROOM_SHADOW_OPACITY;
+
+    const studioFloor = this.context.scene.getObjectByName(STUDIO_FLOOR_NAME);
+    if (studioFloor) studioFloor.visible = false;
   }
 
   dispose(): void {
@@ -93,5 +97,8 @@ export class RoomRenderer {
     const ground = this.context.ground;
     ground.position.y = this.groundDefaults.y;
     (ground.material as THREE.ShadowMaterial).opacity = this.groundDefaults.opacity;
+
+    const studioFloor = this.context.scene.getObjectByName(STUDIO_FLOOR_NAME);
+    if (studioFloor) studioFloor.visible = true;
   }
 }

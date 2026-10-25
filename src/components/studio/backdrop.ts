@@ -165,6 +165,11 @@ function paintGrain(ctx: CanvasRenderingContext2D) {
 }
 
 function createBackdropTexture({ top, floor, edge, spot, grain }: BackdropPalette): THREE.CanvasTexture {
+  if (typeof document === "undefined") {
+    const dummy = { width: CANVAS_PX, height: CANVAS_PX } as unknown as HTMLCanvasElement;
+    return new THREE.CanvasTexture(dummy);
+  }
+
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_PX;
   canvas.height = CANVAS_PX;
@@ -201,9 +206,97 @@ function createBackdropTexture({ top, floor, edge, spot, grain }: BackdropPalett
   return texture;
 }
 
+export const STUDIO_FLOOR_NAME = "__studio_floor__";
+const FLOOR_CANVAS_PX = 512;
+const FLOOR_RADIUS_WORLD = 14;
+
+export function createStudioFloorMesh(palette: BackdropPalette): THREE.Mesh {
+  const geo = new THREE.CircleGeometry(FLOOR_RADIUS_WORLD, 64);
+  geo.rotateX(-Math.PI / 2);
+
+  if (typeof document === "undefined") {
+    const fallbackMat = new THREE.MeshBasicMaterial({ visible: false });
+    const mesh = new THREE.Mesh(geo, fallbackMat);
+    mesh.name = STUDIO_FLOOR_NAME;
+    return mesh;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = FLOOR_CANVAS_PX;
+  canvas.height = FLOOR_CANVAS_PX;
+  const ctx = canvas.getContext("2d", { willReadFrequently: !!palette.grain })!;
+
+  const half = FLOOR_CANVAS_PX / 2;
+  const pool = ctx.createRadialGradient(half, half, 0, half, half, half);
+
+  if (palette.spot) {
+    const spotColor = palette.spot.color;
+    pool.addColorStop(0, spotColor.replace(")", " / 1)"));
+    pool.addColorStop(0.22, palette.floor);
+    pool.addColorStop(0.65, palette.top);
+    pool.addColorStop(0.85, palette.top.replace(")", " / 0.5)"));
+    pool.addColorStop(1, palette.top.replace(")", " / 0)"));
+  } else if (palette.floor === "hsl(0 0% 100%)") {
+    pool.addColorStop(0, "hsl(0 0% 100% / 1)");
+    pool.addColorStop(0.8, "hsl(0 0% 100% / 0.9)");
+    pool.addColorStop(1, "hsl(0 0% 100% / 0)");
+  } else {
+    pool.addColorStop(0, palette.floor);
+    pool.addColorStop(0.55, palette.floor);
+    pool.addColorStop(0.78, palette.top.replace(")", " / 0.8)"));
+    pool.addColorStop(1, palette.top.replace(")", " / 0)"));
+  }
+
+  ctx.fillStyle = pool;
+  ctx.fillRect(0, 0, FLOOR_CANVAS_PX, FLOOR_CANVAS_PX);
+
+  if (palette.grain) {
+    const random = seededRandom(19);
+    const image = ctx.getImageData(0, 0, FLOOR_CANVAS_PX, FLOOR_CANVAS_PX);
+    for (let i = 0; i < image.data.length; i += 4) {
+      if (image.data[i + 3] > 0) {
+        const noise = (random() - 0.5) * 2 * GRAIN_AMPLITUDE;
+        image.data[i] += noise;
+        image.data[i + 1] += noise;
+        image.data[i + 2] += noise;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = STUDIO_FLOOR_NAME;
+  mesh.position.y = -0.0005;
+  mesh.renderOrder = 0;
+
+  return mesh;
+}
+
 export function disposeBackdrop(scene: THREE.Scene) {
   if (scene.background instanceof THREE.Texture) scene.background.dispose();
   scene.background = null;
+
+  const existingFloor = scene.getObjectByName(STUDIO_FLOOR_NAME);
+  if (existingFloor instanceof THREE.Mesh) {
+    existingFloor.geometry.dispose();
+    if (existingFloor.material instanceof THREE.Material) {
+      if ("map" in existingFloor.material && existingFloor.material.map instanceof THREE.Texture) {
+        existingFloor.material.map.dispose();
+      }
+      existingFloor.material.dispose();
+    }
+    scene.remove(existingFloor);
+  }
 }
 
 export function applyBackdrop(
@@ -213,5 +306,9 @@ export function applyBackdrop(
 ) {
   disposeBackdrop(scene);
   if (mode === "transparent") return;
-  scene.background = createBackdropTexture(resolvePalette(mode, tone));
+  const palette = resolvePalette(mode, tone);
+  scene.background = createBackdropTexture(palette);
+  const floorMesh = createStudioFloorMesh(palette);
+  scene.add(floorMesh);
 }
+
