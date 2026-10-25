@@ -132,6 +132,17 @@ function ViewerContent({ id }: { id: string }) {
     return () => clearInterval(interval);
   }, [id, isProcessing]);
 
+  const saveThumbnail = async (image: Blob) => {
+    const res = await fetch(`/api/products/${id}/thumbnail`, {
+      method: "POST",
+      headers: { "Content-Type": image.type || "image/png" },
+      body: image,
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Could not save thumbnail");
+    setProduct((p) => (p ? { ...p, thumbnailUrl: json.data.thumbnailUrl } : p));
+  };
+
   // Download GLB Action
   const handleDownloadGLB = async () => {
     const latestAttempt = product?.generationAttempts?.[0];
@@ -340,6 +351,11 @@ function ViewerContent({ id }: { id: string }) {
                   widthMm={product.widthMm}
                   depthMm={product.depthMm}
                   heightMm={product.heightMm}
+                  captureName={product.name}
+                  onFirstFrame={
+                    product.thumbnailUrl ? undefined : (image) => void saveThumbnail(image).catch(() => {})
+                  }
+                  onUseAsThumbnail={isCustomer ? undefined : saveThumbnail}
                 />
               </div>
             ) : product.status === "processing" ? (
@@ -466,25 +482,41 @@ function ViewerContent({ id }: { id: string }) {
                   Source Photographs
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  4 perspective angles used for 3D AI reconstruction
+                  {product.images.length === 1
+                    ? "1 perspective view uploaded (Single-Image AI Synthesis)"
+                    : `${product.images.length} perspective angles used for 3D AI reconstruction`}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-2">
-                {product.images.map((img) => (
-                  <div key={img.id} className="space-y-1 text-center">
-                    <div className="aspect-square rounded-lg border border-stone-200 overflow-hidden bg-stone-50">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img.publicUrl}
-                        alt={img.viewType}
-                        className="h-full w-full object-cover"
-                      />
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {product.images.map((img) => (
+                    <div key={img.id} className="space-y-1 text-center">
+                      <div className="aspect-square rounded-lg border border-stone-200 overflow-hidden bg-stone-50">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.publicUrl}
+                          alt={img.viewType}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <span className="text-[10px] font-semibold uppercase text-stone-600">
+                        {img.viewType} view
+                      </span>
                     </div>
-                    <span className="text-[10px] font-semibold uppercase text-stone-600">
-                      {img.viewType} view
-                    </span>
+                  ))}
+                </div>
+
+                {product.images.length === 1 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold text-amber-950 text-[11px]">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span>Single-Photo Quality Notice</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-800">
+                      ১টি ছবি থেকে তৈরি হওয়ায় AI পেছনের অংশ অনুমান করে এবং সূক্ষ্ম টেক্সচার (যেমন ক্রোকোডাইল লেদার বা খোদাই) স্মুথ করে ফেলে। আসল চামড়ার টেক্সচার ও সঠিক কার্ভ পেতে ৪টি অ্যাঙ্গেল (Front, Back, Left, Right) আই-লেভেলে ছবি তুলে জেনারেট করুন।
+                    </p>
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
 
@@ -517,7 +549,9 @@ function ViewerContent({ id }: { id: string }) {
                 </div>
                 <div className="flex justify-between py-1 border-b border-stone-100">
                   <span className="text-stone-500">Provider:</span>
-                  <span className="font-semibold text-stone-900">Meshy AI Multi-Image</span>
+                  <span className="font-semibold text-stone-900">
+                    {product.images.length === 1 ? "Meshy AI (Single Image)" : "Meshy AI (Multi-Image 4-View)"}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-stone-500">Task Attempts:</span>

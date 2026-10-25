@@ -27,6 +27,7 @@ import { formatDimension } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl, cleanWhatsAppNumber } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
+import { getProductThumbnail } from "@/lib/product-thumbnail";
 
 interface MerchantProfileData {
   id: string;
@@ -432,8 +433,7 @@ export default function PublicStorefrontPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((prod) => {
                 const frontImg =
-                  prod.images?.find((img) => img.viewType === "front")?.publicUrl ||
-                  prod.images?.[0]?.publicUrl ||
+                  getProductThumbnail(prod) ||
                   "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&auto=format&fit=crop";
 
                 const isWishlisted = wishlistIds.has(prod.id);
@@ -462,7 +462,10 @@ export default function PublicStorefrontPage({
                     key={prod.id}
                     className="group bg-white rounded-xl border border-neutral-200/80 overflow-hidden hover:border-amber-300 hover:shadow-md transition-all flex flex-col justify-between"
                   >
-                    <div>
+                    <Link
+                      href={`/viewer/${prod.id}`}
+                      className="block cursor-pointer focus:outline-none"
+                    >
                       {/* Image Frame */}
                       <div className="relative aspect-4/3 w-full bg-neutral-100 overflow-hidden">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -473,7 +476,7 @@ export default function PublicStorefrontPage({
                         />
 
                         {/* Top Badges */}
-                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
                           {has3D ? (
                             <Badge className="bg-emerald-500/90 hover:bg-emerald-600 text-white border-0 text-[10px] tracking-wide font-medium shadow-xs gap-1 backdrop-blur-xs">
                               <Sparkles className="w-3 h-3" />
@@ -492,8 +495,12 @@ export default function PublicStorefrontPage({
                         {/* Wishlist Heart Button */}
                         <button
                           type="button"
-                          onClick={() => handleToggleWishlist(prod.id)}
-                          className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleToggleWishlist(prod.id);
+                          }}
+                          className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                             isWishlisted
                               ? "bg-rose-50 text-rose-600 shadow-sm"
                               : "bg-white/80 text-neutral-600 hover:bg-white hover:text-rose-600 shadow-xs"
@@ -536,33 +543,23 @@ export default function PublicStorefrontPage({
                           </span>
                         </div>
                       </CardContent>
-                    </div>
+                    </Link>
 
                     {/* Action Footer */}
-                    <div className="p-4 pt-0 grid grid-cols-2 gap-2">
-                      <Link href={`/viewer/${prod.id}`} className="w-full">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-xs h-9 border-neutral-200 hover:bg-neutral-50 gap-1.5"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-neutral-600" />
-                          <span>View 3D</span>
-                        </Button>
-                      </Link>
-
+                    <div className="p-4 pt-0">
                       <a
                         href={productWaUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <Button
                           size="sm"
                           className="w-full text-xs h-9 bg-[#25D366] hover:bg-[#20ba59] text-white gap-1.5 shadow-xs"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
+                          <span>Order via WhatsApp</span>
                         </Button>
                       </a>
                     </div>

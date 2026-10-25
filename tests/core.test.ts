@@ -156,3 +156,24 @@ describe("3D Generation Cancellation & Proxy Resolution", () => {
   });
 });
 
+describe("3D Model GLB Optimization Pipeline", () => {
+  it("exports optimizeGlbBuffer and optimizes or safely handles buffers", async () => {
+    const { optimizeGlbBuffer } = await import("../src/lib/storage/glb-optimizer");
+    expect(typeof optimizeGlbBuffer).toBe("function");
+
+    // Test with sample GLB file if present
+    const fs = await import("fs");
+    const path = await import("path");
+    const samplePath = path.join(process.cwd(), "public", "models", "default-model.glb");
+
+    if (fs.existsSync(samplePath)) {
+      const raw = fs.readFileSync(samplePath);
+      const optimized = await optimizeGlbBuffer(raw);
+      expect(optimized).toBeInstanceOf(Buffer);
+      expect(optimized.length).toBeGreaterThan(0);
+      expect(optimized.length).toBeLessThanOrEqual(raw.length);
+    }
+  });
+});
+
+

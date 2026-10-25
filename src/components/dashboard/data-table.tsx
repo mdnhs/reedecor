@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension } from "@/lib/utils";
+import { getProductThumbnail } from "@/lib/product-thumbnail";
 
 interface DataTableProps {
   products: StoredProduct[];
@@ -103,10 +104,10 @@ export function DataTable({ products }: DataTableProps) {
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-lg bg-stone-100 border border-stone-200 overflow-hidden shrink-0">
-                          {product.images[0] ? (
+                          {getProductThumbnail(product) ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={product.images[0].publicUrl}
+                              src={getProductThumbnail(product)}
                               alt={product.name}
                               className="h-full w-full object-cover"
                             />

@@ -10,6 +10,7 @@ export interface StoredProduct {
   priceBdt: number;
   status: "draft" | "queued" | "processing" | "completed" | "failed";
   generationMode?: "image_to_3d" | "multi_image_to_3d";
+  thumbnailUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   images: Array<{

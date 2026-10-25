@@ -61,6 +61,7 @@ export class SupabaseDbService {
         heightMm: p.height_mm,
         priceBdt: Number(p.price_bdt || 18500),
         status: p.status,
+        thumbnailUrl: p.thumbnail_url ?? null,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
         images: (imagesData || [])
@@ -129,6 +130,7 @@ export class SupabaseDbService {
         heightMm: p.height_mm,
         priceBdt: Number(p.price_bdt || 18500),
         status: p.status,
+        thumbnailUrl: p.thumbnail_url ?? null,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
         images: (imagesData || []).map((img) => ({
@@ -205,6 +207,15 @@ export class SupabaseDbService {
       .from("products")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id);
+  }
+
+  async updateProductThumbnail(id: string, thumbnailUrl: string): Promise<void> {
+    if (!this.client) return;
+    const { error } = await this.client
+      .from("products")
+      .update({ thumbnail_url: thumbnailUrl, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   async addGenerationAttempt(

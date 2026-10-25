@@ -4,14 +4,53 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { RotateCcw, ZoomIn, ZoomOut, SunMedium, Play, Pause } from "lucide-react";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RotateCcw, ZoomIn, ZoomOut, Palette, Camera, Download, X, Play, Pause, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  applyBackdrop,
+  disposeBackdrop,
+  extractProductTone,
+  type BackdropMode,
+  type ProductTone,
+} from "./backdrop";
+
+const BACKDROP_OPTIONS: { value: BackdropMode; label: string }[] = [
+  { value: "auto", label: "Auto (product color)" },
+  { value: "studio", label: "Studio grey" },
+  { value: "white", label: "White" },
+  { value: "transparent", label: "Transparent" },
+];
 
 interface ModelViewerProps {
   modelUrl: string;
   widthMm: number;
   depthMm: number;
   heightMm: number;
+  captureName?: string;
+  onFirstFrame?: (image: Blob) => void;
+  onUseAsThumbnail?: (image: Blob) => Promise<void>;
+}
+
+const THUMBNAIL_MAX_SIDE = 720;
+
+async function resizeImageBlob(blob: Blob, maxSide: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((out) => (out ? resolve(out) : reject(new Error("Could not encode image"))), "image/png")
+  );
+}
+
+interface Capture {
+  blob: Blob;
+  url: string;
 }
 
 export function ModelViewer({
@@ -19,14 +58,27 @@ export function ModelViewer({
   widthMm,
   depthMm,
   heightMm,
+  captureName = "product",
+  onFirstFrame,
+  onUseAsThumbnail,
 }: ModelViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [bgMode, setBgMode] = useState<"white" | "warm" | "transparent">("white");
+  const [bgMode, setBgMode] = useState<BackdropMode>("auto");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [productTone, setProductTone] = useState<ProductTone | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const autoRotateRef = useRef(autoRotate);
+  const bgModeRef = useRef(bgMode);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const onFirstFrameRef = useRef(onFirstFrame);
+  const firstFrameSent = useRef(false);
+  const [capture, setCapture] = useState<Capture | null>(null);
+  const [savingThumb, setSavingThumb] = useState(false);
+  const [thumbError, setThumbError] = useState<string | null>(null);
 
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -40,6 +92,10 @@ export function ModelViewer({
 
     // 1. Scene setup
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
+    firstFrameSent.current = false;
+    setProductTone(null);
+    applyBackdrop(scene, bgModeRef.current, null);
 
     // 2. Camera setup
     const width = container.clientWidth || 800;
@@ -48,7 +104,7 @@ export function ModelViewer({
     camera.position.copy(initialCameraPos.current);
     cameraRef.current = camera;
 
-    // 3. Renderer setup
+    // 3. Renderer setup - Authentic Color Fidelity (No Filter / No Tone-Mapping Distortion)
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
@@ -57,35 +113,44 @@ export function ModelViewer({
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Khronos Group PBR Neutral Tone Mapping: Preserves true color hue without filter while smoothly preventing highlight clipping on white surfaces
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.0;
 
+    rendererRef.current = renderer;
     container.replaceChildren(renderer.domElement);
 
-    // 4. Photorealistic Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
+    // 4. Photorealistic Neutral Studio Environment (Khronos RoomEnvironment IBL)
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const envTexture = pmremGenerator.fromScene(new RoomEnvironment()).texture;
+    scene.environment = envTexture;
+
+    // 5. Balanced Studio Lighting (Crafted to reveal textures & subtle shading on bright/white objects)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
     scene.add(ambientLight);
 
-    // Main Studio Key Light
-    const keyLight = new THREE.DirectionalLight(0xfffdfa, 2.2);
-    keyLight.position.set(3, 5, 4);
+    // Balanced Directional Key Light for soft shadows and depth
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    keyLight.position.set(2.5, 4.5, 3.5);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
     keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 15;
-    keyLight.shadow.bias = -0.0004;
+    keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
 
-    // Soft Rim / Fill Light
-    const fillLight = new THREE.DirectionalLight(0xf0f5ff, 1.2);
-    fillLight.position.set(-3, 3, -2);
+    // Subtle Fill Light from the side
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    fillLight.position.set(-2.5, 2.5, -2);
     scene.add(fillLight);
 
-    // Top Overhead Light
-    const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    topLight.position.set(0, 6, 0);
+    // Overhead Top Light
+    const topLight = new THREE.DirectionalLight(0xffffff, 0.2);
+    topLight.position.set(0, 5, 0);
     scene.add(topLight);
 
     // Subtle Ground Shadow Plane
@@ -97,7 +162,7 @@ export function ModelViewer({
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // 5. OrbitControls setup
+    // 6. OrbitControls setup
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -109,8 +174,12 @@ export function ModelViewer({
     controls.target.set(0, 0.45, 0);
     controlsRef.current = controls;
 
-    // 6. Load GLB Model
+    // 7. Load GLB Model (with Draco decompressor support)
     const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("/draco/");
+    loader.setDRACOLoader(dracoLoader);
+
     let currentModel: THREE.Group | null = null;
 
     setLoading(true);
@@ -140,15 +209,55 @@ export function ModelViewer({
         currentModel.position.z = -center.z * targetScale;
         currentModel.position.y = -bbox.min.y * targetScale;
 
+        const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+
         currentModel.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
             mesh.castShadow = true;
             mesh.receiveShadow = true;
+
+            // Preserve authentic texture colors and maximize texture sharpness from all angles
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach((mat) => {
+              if (mat) {
+                if ("map" in mat && mat.map instanceof THREE.Texture) {
+                  mat.map.colorSpace = THREE.SRGBColorSpace;
+                  mat.map.anisotropy = maxAnisotropy;
+                  mat.map.needsUpdate = true;
+                }
+                if ("normalMap" in mat && mat.normalMap instanceof THREE.Texture) {
+                  mat.normalMap.anisotropy = maxAnisotropy;
+                  mat.normalMap.needsUpdate = true;
+                }
+                if ("roughnessMap" in mat && mat.roughnessMap instanceof THREE.Texture) {
+                  mat.roughnessMap.anisotropy = maxAnisotropy;
+                  mat.roughnessMap.needsUpdate = true;
+                }
+                if ("metalnessMap" in mat && mat.metalnessMap instanceof THREE.Texture) {
+                  mat.metalnessMap.anisotropy = maxAnisotropy;
+                  mat.metalnessMap.needsUpdate = true;
+                }
+                if ("aoMap" in mat && mat.aoMap instanceof THREE.Texture) {
+                  mat.aoMap.anisotropy = maxAnisotropy;
+                  mat.aoMap.needsUpdate = true;
+                }
+                // Enhance tactile relief on standard PBR materials
+                if ("isMeshStandardMaterial" in mat && mat.isMeshStandardMaterial) {
+                  const stdMat = mat as THREE.MeshStandardMaterial;
+                  if (stdMat.normalMap) {
+                    stdMat.normalScale.set(1.5, 1.5);
+                  }
+                  stdMat.envMapIntensity = 0.85;
+                  stdMat.needsUpdate = true;
+                }
+              }
+            });
           }
         });
 
         scene.add(currentModel);
+        setProductTone(extractProductTone(currentModel));
         setLoading(false);
       },
       (xhr) => {
@@ -193,6 +302,12 @@ export function ModelViewer({
 
       controls.dispose();
       renderer.dispose();
+      dracoLoader.dispose();
+      pmremGenerator.dispose();
+      envTexture.dispose();
+      disposeBackdrop(scene);
+      sceneRef.current = null;
+      rendererRef.current = null;
 
       if (currentModel) {
         currentModel.traverse((child) => {
@@ -215,6 +330,11 @@ export function ModelViewer({
   }, [modelUrl]);
 
   useEffect(() => {
+    bgModeRef.current = bgMode;
+    if (sceneRef.current) applyBackdrop(sceneRef.current, bgMode, productTone);
+  }, [bgMode, productTone]);
+
+  useEffect(() => {
     autoRotateRef.current = autoRotate;
     if (controlsRef.current) {
       controlsRef.current.autoRotate = autoRotate;
@@ -226,6 +346,72 @@ export function ModelViewer({
       cameraRef.current.position.copy(initialCameraPos.current);
       controlsRef.current.target.set(0, 0.45, 0);
       controlsRef.current.update();
+    }
+  };
+
+  const closeCapture = () => {
+    setCapture((c) => {
+      if (c) URL.revokeObjectURL(c.url);
+      return null;
+    });
+    setThumbError(null);
+  };
+
+  useEffect(() => () => {
+    if (capture) URL.revokeObjectURL(capture.url);
+  }, [capture]);
+
+  const renderToBlob = (): Promise<Blob | null> => {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    if (!renderer || !scene || !camera) return Promise.resolve(null);
+
+    renderer.render(scene, camera);
+    return new Promise((resolve) => renderer.domElement.toBlob(resolve, "image/png"));
+  };
+
+  const takeScreenshot = async () => {
+    const blob = await renderToBlob();
+    if (blob) setCapture({ blob, url: URL.createObjectURL(blob) });
+  };
+
+  useEffect(() => {
+    onFirstFrameRef.current = onFirstFrame;
+  }, [onFirstFrame]);
+
+  useEffect(() => {
+    if (loading || loadError || !onFirstFrameRef.current) return;
+    const frame = requestAnimationFrame(() =>
+      requestAnimationFrame(async () => {
+        if (firstFrameSent.current) return;
+        firstFrameSent.current = true;
+        const blob = await renderToBlob();
+        if (blob) onFirstFrameRef.current?.(await resizeImageBlob(blob, THUMBNAIL_MAX_SIDE));
+      })
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [loading, loadError]);
+
+  const downloadCapture = () => {
+    if (!capture) return;
+    const link = document.createElement("a");
+    link.href = capture.url;
+    link.download = `${captureName.replace(/\s+/g, "-").toLowerCase()}-3d.png`;
+    link.click();
+  };
+
+  const useCaptureAsThumbnail = async () => {
+    if (!capture || !onUseAsThumbnail) return;
+    setSavingThumb(true);
+    setThumbError(null);
+    try {
+      await onUseAsThumbnail(await resizeImageBlob(capture.blob, THUMBNAIL_MAX_SIDE));
+      closeCapture();
+    } catch (err) {
+      setThumbError(err instanceof Error ? err.message : "Could not save thumbnail");
+    } finally {
+      setSavingThumb(false);
     }
   };
 
@@ -243,13 +429,7 @@ export function ModelViewer({
       {/* 3D Canvas Viewport */}
       <div
         ref={mountRef}
-        className={`w-full h-full flex-1 transition-colors duration-300 ${
-          bgMode === "white"
-            ? "bg-radial from-stone-50 via-stone-100/60 to-stone-200/50"
-            : bgMode === "warm"
-            ? "bg-radial from-amber-50/40 via-stone-100/70 to-stone-200/70"
-            : "bg-transparent"
-        }`}
+        className="w-full h-full flex-1"
       />
 
       {/* Loading Overlay */}
@@ -308,20 +488,92 @@ export function ModelViewer({
           <ZoomOut className="h-3.5 w-3.5" />
         </Button>
         <div className="w-px h-4 bg-stone-200" />
+        <div className="relative">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
+            onClick={() => setMenuOpen((o) => !o)}
+            title="Change backdrop"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <Palette className="h-3.5 w-3.5" />
+            Backdrop
+          </Button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-2 w-48 p-1 rounded-xl bg-white border border-stone-200/90 shadow-md"
+            >
+              <p className="px-2.5 py-1.5 text-xs font-bold text-stone-900">Backdrop</p>
+              {BACKDROP_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  role="menuitemradio"
+                  aria-checked={bgMode === option.value}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-stone-700 hover:bg-stone-100"
+                  onClick={() => {
+                    setBgMode(option.value);
+                    setMenuOpen(false);
+                  }}
+                >
+                  {option.label}
+                  {bgMode === option.value && <Check className="h-3.5 w-3.5" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <Button
-          size="icon"
+          size="sm"
           variant="ghost"
-          className="h-8 w-8 text-stone-600 hover:text-stone-900"
-          onClick={() =>
-            setBgMode((m) =>
-              m === "white" ? "warm" : m === "warm" ? "transparent" : "white"
-            )
-          }
-          title="Toggle Backdrop"
+          className="h-8 gap-1.5 px-2.5 text-xs text-stone-600 hover:text-stone-900"
+          onClick={takeScreenshot}
+          disabled={loading || !!loadError}
+          title="Capture screenshot"
         >
-          <SunMedium className="h-3.5 w-3.5" />
+          <Camera className="h-3.5 w-3.5" />
+          Capture
         </Button>
       </div>
+
+      {capture && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-stone-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-3 shadow-xl space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-sm font-bold text-stone-900">Screenshot</p>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-stone-500"
+                onClick={closeCapture}
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={capture.url}
+              alt="Captured 3D view"
+              className="w-full rounded-xl border border-stone-200 bg-stone-50 object-contain"
+            />
+            {thumbError && <p className="px-1 text-xs font-medium text-rose-600">{thumbError}</p>}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 gap-2" onClick={downloadCapture}>
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
+              {onUseAsThumbnail && (
+                <Button className="flex-1" onClick={useCaptureAsThumbnail} disabled={savingThumb}>
+                  {savingThumb ? "Saving..." : "Use as thumbnail"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Real-world Dimensions Badge */}
       <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-stone-200/90 shadow-2xs text-xs text-stone-700 flex items-center gap-2 z-10">

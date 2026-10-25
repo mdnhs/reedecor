@@ -396,6 +396,53 @@ app.post("/products", zValidator("json", createProductSchema), async (c) => {
   return c.json({ success: true, data: newProduct }, 201);
 });
 
+const THUMBNAIL_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const THUMBNAIL_MAX_BYTES = 1.5 * 1024 * 1024;
+
+// Set Product Thumbnail: anyone may set the first (auto) thumbnail, replacing it needs the owner or an admin
+app.post("/products/:id/thumbnail", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  const id = c.req.param("id");
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
+  if (!product) {
+    return c.json({ success: false, error: "Product not found" }, 404);
+  }
+
+  if (product.thumbnailUrl) {
+    if (!currentUser) {
+      return c.json({ success: false, error: "Sign in to change the thumbnail." }, 401);
+    }
+    const isOwner = currentUser.role === "merchant" && currentUser.id === product.merchantId;
+    if (currentUser.role !== "saas_admin" && !isOwner) {
+      return c.json(
+        { success: false, error: "Only the product owner or an admin can change the thumbnail." },
+        403
+      );
+    }
+  }
+
+  const mimeType = (c.req.header("Content-Type") || "").split(";")[0].trim();
+  if (!THUMBNAIL_MIME_TYPES.includes(mimeType)) {
+    return c.json({ success: false, error: "Thumbnail must be a PNG, JPEG or WebP image." }, 400);
+  }
+
+  const buffer = Buffer.from(await c.req.arrayBuffer());
+  if (buffer.length === 0 || buffer.length > THUMBNAIL_MAX_BYTES) {
+    return c.json({ success: false, error: "Thumbnail must be between 1 byte and 1.5 MB." }, 400);
+  }
+
+  try {
+    const upload = await storageService.uploadProductThumbnail(buffer, mimeType, id);
+    await supabaseDb.updateProductThumbnail(id, upload.publicUrl);
+    inMemoryStore.update(id, (p) => ({ ...p, thumbnailUrl: upload.publicUrl }));
+    return c.json({ success: true, data: { thumbnailUrl: upload.publicUrl } });
+  } catch (err) {
+    console.error("Thumbnail upload failed:", err);
+    const detail = err instanceof Error ? err.message : "unknown error";
+    return c.json({ success: false, error: `Could not save thumbnail: ${detail}` }, 500);
+  }
+});
+
 // Delete Product (Merchant or SaaS Admin Only)
 app.delete("/products/:id", async (c) => {
   const currentUser = await getCurrentUser(c);
@@ -467,6 +514,7 @@ app.post("/products/:id/generate", async (c) => {
         textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
         enablePbr: true,
         modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+        aiModel: settings.meshyModel || "meshy-7.1",
       });
       taskId = res.taskId;
     } else {
@@ -482,6 +530,7 @@ app.post("/products/:id/generate", async (c) => {
         textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
         enablePbr: true,
         modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+        aiModel: settings.meshyModel || "meshy-7.1",
       });
       taskId = res.taskId;
     }
@@ -596,7 +645,31 @@ app.get("/products/:id/status", async (c) => {
       const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId, mode);
 
       if (task.status === "SUCCEEDED" && (task.model_urls?.glb || task.model_url)) {
-        const modelUrl = task.model_urls?.glb || task.model_url || "";
+        let modelUrl = task.model_urls?.glb || task.model_url || "";
+
+        // Cache the GLB permanently in Supabase Storage to prevent 24hr Meshy CloudFront signed URL expiration
+        try {
+          const glbRes = await fetch(modelUrl);
+          if (glbRes.ok) {
+            let glbBuffer: Buffer = Buffer.from(await glbRes.arrayBuffer());
+
+            // Optimize & compress GLB (Draco + deduplication + weld) to shrink size by 50-85%
+            try {
+              const { optimizeGlbBuffer } = await import("@/lib/storage/glb-optimizer");
+              const optimized = await optimizeGlbBuffer(glbBuffer);
+              glbBuffer = Buffer.from(optimized.buffer, optimized.byteOffset, optimized.byteLength);
+            } catch (optErr) {
+              console.warn("[Meshy Sync] GLB optimization skipped:", optErr);
+            }
+
+            const uploadRes = await storageService.uploadModelFile(glbBuffer, `${id}.glb`, id);
+            if (uploadRes?.publicUrl) {
+              modelUrl = uploadRes.publicUrl;
+            }
+          }
+        } catch (uploadErr) {
+          console.warn("[Meshy Sync] Failed to cache GLB in Supabase Storage:", uploadErr);
+        }
 
         await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
           status: "completed",
@@ -725,6 +798,7 @@ app.post("/products/:id/retry", async (c) => {
         textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
         enablePbr: true,
         modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+        aiModel: settings.meshyModel || "meshy-7.1",
       });
       taskId = res.taskId;
     } else {
@@ -740,6 +814,7 @@ app.post("/products/:id/retry", async (c) => {
         textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
         enablePbr: true,
         modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
+        aiModel: settings.meshyModel || "meshy-7.1",
       });
       taskId = res.taskId;
     }
@@ -871,6 +946,29 @@ app.get("/proxy-model", async (c) => {
   try {
     const res = await fetch(url);
     if (!res.ok) {
+      // If external signed CDN URL has expired (403 Forbidden / 404 Not Found),
+      // gracefully serve the default 3D model instead of crashing the client viewer with 403
+      if ((res.status === 403 || res.status === 404 || res.status === 410) && url.includes("assets.meshy.ai")) {
+        console.warn(`[Proxy Model] Meshy signed URL expired (${res.status}): ${url}. Serving local fallback model.`);
+        try {
+          const fs = await import("fs/promises");
+          const path = await import("path");
+          const fallbackPath = path.join(process.cwd(), "public", "models", "default-model.glb");
+          const buffer = await fs.readFile(fallbackPath);
+          return new Response(buffer, {
+            status: 200,
+            headers: {
+              "Content-Type": "model/gltf-binary",
+              "Access-Control-Allow-Origin": "*",
+              "Cache-Control": "public, max-age=86400",
+              "X-Fallback-Model": "true",
+            },
+          });
+        } catch (fsErr) {
+          console.error("Failed to load local fallback GLB:", fsErr);
+        }
+      }
+
       return c.text(
         `Failed to fetch 3D model: ${res.statusText}`,
         (res.status >= 400 && res.status < 600 ? res.status : 500) as 400 | 404 | 500

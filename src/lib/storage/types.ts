@@ -13,6 +13,12 @@ export interface StorageProvider {
     viewType: "front" | "back" | "left" | "right"
   ): Promise<StorageUploadResult>;
 
+  uploadProductThumbnail(
+    file: Buffer,
+    mimeType: string,
+    productId: string
+  ): Promise<StorageUploadResult>;
+
   uploadModelFile(
     file: Blob | Buffer,
     fileName: string,

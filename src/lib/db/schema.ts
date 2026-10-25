@@ -89,6 +89,7 @@ export const products = pgTable(
     depthMm: integer("depth_mm").notNull(),
     heightMm: integer("height_mm").notNull(),
     status: text("status").notNull().default("draft"), // draft, queued, processing, completed, failed
+    thumbnailUrl: text("thumbnail_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -24,6 +24,7 @@ import { formatDimension, cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
+import { getProductThumbnail } from "@/lib/product-thumbnail";
 
 export default function MyProductsPage() {
   const { user, isCustomer } = useAuth();
@@ -258,9 +259,7 @@ export default function MyProductsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map((product) => {
-              const frontImage =
-                product.images.find((img) => img.viewType === "front")?.publicUrl ||
-                product.images[0]?.publicUrl;
+              const frontImage = getProductThumbnail(product);
 
               const isWishlisted = wishlistIds.has(product.id);
               const price = product.priceBdt || 18500;
@@ -285,7 +284,10 @@ export default function MyProductsPage() {
                   key={product.id}
                   className="overflow-hidden border-stone-200/80 bg-white studio-card-shadow studio-card-hover flex flex-col justify-between group rounded-2xl"
                 >
-                  <div>
+                  <Link
+                    href={`/viewer/${product.id}`}
+                    className="block cursor-pointer focus:outline-none"
+                  >
                     {/* Image Preview & Badges */}
                     <div className="relative aspect-4/3 bg-stone-100 overflow-hidden">
                       {frontImage ? (
@@ -301,10 +303,14 @@ export default function MyProductsPage() {
                         </div>
                       )}
 
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
                         <button
                           type="button"
-                          onClick={() => handleToggleWishlist(product.id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleToggleWishlist(product.id);
+                          }}
                           className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
                             isWishlisted
                               ? "bg-rose-50 text-rose-600 shadow-xs"
@@ -349,7 +355,7 @@ export default function MyProductsPage() {
                     {/* Meta info */}
                     <CardContent className="p-5 space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-bold text-stone-900 text-sm tracking-tight truncate font-display">
+                        <h3 className="font-bold text-stone-900 text-sm tracking-tight truncate font-display group-hover:text-amber-800 transition-colors">
                           {product.name}
                         </h3>
                         <span className="font-bold text-stone-900 text-sm shrink-0 font-mono">
@@ -370,7 +376,7 @@ export default function MyProductsPage() {
                         </strong>
                       </div>
                     </CardContent>
-                  </div>
+                  </Link>
 
                   {/* Actions Bar */}
                   <div className="p-4 pt-0 border-t border-stone-100 mt-2 flex items-center justify-between">
@@ -378,44 +384,30 @@ export default function MyProductsPage() {
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
                       title="Send WhatsApp message about this piece"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
                       <span>WhatsApp</span>
                     </a>
 
-                    <div className="flex items-center gap-1.5">
-                      <Link href={`/viewer/${product.id}`}>
-                        <Button
-                          size="sm"
-                          variant={product.status === "completed" ? "default" : "outline"}
-                          className={`gap-1.5 text-xs h-8 ${
-                            product.status === "completed"
-                              ? "bg-stone-900 hover:bg-stone-800 text-white shadow-2xs"
-                              : "border-stone-200 text-stone-700 hover:bg-stone-100"
-                          }`}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>
-                            {product.status === "completed" ? "3D Studio" : "Inspect"}
-                          </span>
-                        </Button>
-                      </Link>
-
-                      {!isCustomer && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
-                          disabled={deletingId === product.id}
-                          onClick={() => handleDelete(product.id)}
-                          title="Delete product"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                    {!isCustomer && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
+                        disabled={deletingId === product.id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(product.id);
+                        }}
+                        title="Delete product"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </Card>
               );

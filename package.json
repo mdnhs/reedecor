@@ -10,6 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@hono/zod-validator": "^0.9.1",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
@@ -19,6 +22,7 @@
     "better-auth": "^1.7.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "draco3d": "^1.5.9",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13",
     "idb": "^8.0.4",

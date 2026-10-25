@@ -99,6 +99,41 @@ export class SupabaseStorageService implements StorageProvider {
     };
   }
 
+  async uploadProductThumbnail(
+    file: Buffer,
+    mimeType: string,
+    productId: string
+  ): Promise<StorageUploadResult> {
+    const ext = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/webp" ? "webp" : "png";
+    const path = `products/${productId}/thumbnail-${Date.now()}.${ext}`;
+
+    if (!this.client) {
+      return {
+        path,
+        publicUrl: `data:${mimeType};base64,${file.toString("base64")}`,
+        sizeBytes: file.length,
+        mimeType,
+      };
+    }
+
+    await this.ensureBucket();
+
+    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+    if (error) {
+      throw new Error(`Failed to upload thumbnail: ${error.message}`);
+    }
+
+    const {
+      data: { publicUrl },
+    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+
+    return { path, publicUrl, sizeBytes: file.length, mimeType };
+  }
+
   async uploadModelFile(
     file: Blob | Buffer,
     fileName: string,

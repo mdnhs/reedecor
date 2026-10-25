@@ -31,6 +31,7 @@ export class MeshyClient {
     textureResolution?: "2k" | "4k" | "8k";
     enablePbr?: boolean;
     modelType?: "standard" | "high_poly";
+    aiModel?: string;
   }): Promise<{ taskId: string; isMock: boolean }> {
     if (!this.isConfigured()) {
       console.warn("Meshy API Key not configured. Using realistic simulated 3D task.");
@@ -49,6 +50,7 @@ export class MeshyClient {
         "2k",
       enable_pbr: params.enablePbr ?? true,
       model_type: params.modelType || "standard",
+      ai_model: params.aiModel || process.env.MESHY_MODEL || "meshy-7.1",
     };
 
     const response = await fetch(`${this.baseUrl}/openapi/v1/multi-image-to-3d`, {
@@ -88,6 +90,7 @@ export class MeshyClient {
     textureResolution?: "2k" | "4k" | "8k";
     enablePbr?: boolean;
     modelType?: "standard" | "high_poly";
+    aiModel?: string;
   }): Promise<{ taskId: string; isMock: boolean }> {
     if (!this.isConfigured()) {
       console.warn("Meshy API Key not configured. Using realistic simulated 3D task.");
@@ -106,6 +109,7 @@ export class MeshyClient {
         "2k",
       enable_pbr: params.enablePbr ?? true,
       model_type: params.modelType || "standard",
+      ai_model: params.aiModel || process.env.MESHY_MODEL || "meshy-7.1",
     };
 
     const response = await fetch(`${this.baseUrl}/openapi/v1/image-to-3d`, {
