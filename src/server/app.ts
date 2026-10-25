@@ -8,6 +8,7 @@ import { meshyClient } from "@/lib/meshy/client";
 import { storageService } from "@/lib/storage/supabase-storage";
 import { DEMO_MERCHANT } from "@/lib/constants";
 import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
+import { assetRoutes } from "./asset-routes";
 
 export const app = new Hono().basePath("/api");
 
@@ -275,6 +276,28 @@ app.patch("/admin/users/:id/role", async (c) => {
   return c.json({ success: true, data: updated });
 });
 
+app.patch("/admin/users/:id/plan", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json(
+      { success: false, error: "Access denied. SaaS Admin privilege required." },
+      403
+    );
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  if (body.plan !== "free" && body.plan !== "pro") {
+    return c.json({ success: false, error: "Plan must be 'free' or 'pro'" }, 400);
+  }
+
+  const updated = await authService.updateUserPlan(c.req.param("id"), body.plan);
+  if (!updated) {
+    return c.json({ success: false, error: "User not found or plan update failed" }, 404);
+  }
+
+  return c.json({ success: true, data: updated });
+});
+
 // 8. Update user status (active / suspended)
 app.patch("/admin/users/:id/status", async (c) => {
   const currentUser = await getCurrentUser(c);
@@ -323,6 +346,8 @@ app.delete("/admin/users/:id", async (c) => {
 
   return c.json({ success: true, message: "User account deleted successfully" });
 });
+
+app.route("/", assetRoutes(getCurrentUser));
 
 // ---------------------------------------------------------------------------
 // Product & Studio Endpoints (With RBAC Guards)

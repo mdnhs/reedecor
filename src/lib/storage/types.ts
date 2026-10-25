@@ -19,6 +19,15 @@ export interface StorageProvider {
     productId: string
   ): Promise<StorageUploadResult>;
 
+  uploadAssetFile(
+    file: Buffer,
+    kind: "glb" | "preview",
+    assetId: string,
+    version: number
+  ): Promise<StorageUploadResult>;
+
+  removeAssetFiles(paths: string[]): Promise<void>;
+
   uploadModelFile(
     file: Blob | Buffer,
     fileName: string,

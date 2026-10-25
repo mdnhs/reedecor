@@ -1,6 +1,8 @@
 import { getSupabaseClient } from "./db";
 import { hashPassword, verifyPassword } from "../auth/password";
 import crypto from "node:crypto";
+import { normalizePlan } from "../assets/access";
+import type { MerchantPlan } from "../assets/types";
 
 export type UserRole = "saas_admin" | "merchant" | "customer";
 export type UserStatus = "active" | "suspended";
@@ -11,8 +13,33 @@ export interface AppUser {
   name: string;
   role: UserRole;
   status: UserStatus;
+  plan: MerchantPlan;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AppUserRow {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  plan?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function toAppUser(row: AppUserRow): AppUser {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role as UserRole,
+    status: row.status as UserStatus,
+    plan: normalizePlan(row.plan),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 export class AuthService {
@@ -145,15 +172,7 @@ export class AuthService {
       throw new Error(error?.message || "Failed to create user");
     }
 
-    return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role as UserRole,
-      status: data.status as UserStatus,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    return toAppUser(data);
   }
 
   /**
@@ -179,15 +198,7 @@ export class AuthService {
     const isValid = verifyPassword(passwordPlain, user.password_hash);
     if (!isValid) return null;
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as UserRole,
-      status: user.status as UserStatus,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-    };
+    return toAppUser(user);
   }
 
   /**
@@ -234,15 +245,7 @@ export class AuthService {
     const user = session.app_users;
     if (!user || user.status === "suspended") return null;
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as UserRole,
-      status: user.status as UserStatus,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-    };
+    return toAppUser(user);
   }
 
   /**
@@ -266,15 +269,7 @@ export class AuthService {
 
     if (!user) return null;
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as UserRole,
-      status: user.status as UserStatus,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-    };
+    return toAppUser(user);
   }
 
   // -------------------------------------------------------------------------
@@ -295,15 +290,7 @@ export class AuthService {
 
     if (error || !data) return [];
 
-    return data.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role as UserRole,
-      status: u.status as UserStatus,
-      createdAt: u.created_at,
-      updatedAt: u.updated_at,
-    }));
+    return data.map(toAppUser);
   }
 
   /**
@@ -321,15 +308,21 @@ export class AuthService {
 
     if (error || !data) return null;
 
-    return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role as UserRole,
-      status: data.status as UserStatus,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    return toAppUser(data);
+  }
+
+  async updateUserPlan(userId: string, plan: MerchantPlan): Promise<AppUser | null> {
+    if (!this.client) return null;
+
+    const { data, error } = await this.client
+      .from("app_users")
+      .update({ plan, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select("*")
+      .single();
+
+    if (error || !data) return null;
+    return toAppUser(data);
   }
 
   /**
@@ -347,15 +340,7 @@ export class AuthService {
 
     if (error || !data) return null;
 
-    return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role as UserRole,
-      status: data.status as UserStatus,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    return toAppUser(data);
   }
 
   /**

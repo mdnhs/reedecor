@@ -5,6 +5,7 @@ import draco3d from "draco3d";
 
 export interface GlbOptimizeOptions {
   enableDraco?: boolean;
+  strict?: boolean;
 }
 
 let ioPromise: Promise<NodeIO> | null = null;
@@ -58,6 +59,7 @@ export async function optimizeGlbBuffer(
     const compressedBytes = await io.writeBinary(document);
     return Buffer.from(compressedBytes);
   } catch (err) {
+    if (options.strict) throw err;
     console.warn("[GlbOptimizer] Compression failed, falling back to original buffer:", err);
     return Buffer.isBuffer(inputBuffer) ? inputBuffer : Buffer.from(inputBuffer);
   }

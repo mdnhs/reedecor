@@ -22,12 +22,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+import type { MerchantPlan } from "@/lib/assets/types";
+
 interface AdminUser {
   id: string;
   name: string;
   email: string;
   role: UserRole;
   status: UserStatus;
+  plan: MerchantPlan;
   createdAt: string;
 }
 
@@ -109,6 +112,25 @@ export default function AdminRbacPage() {
       }
     } catch {
       showToast("Network error updating role", "error");
+    }
+  };
+
+  const handlePlanChange = async (userId: string, plan: MerchantPlan) => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, plan } : u)));
+        showToast(`Merchant plan set to ${plan}`);
+      } else {
+        showToast(json.error || "Failed to update plan", "error");
+      }
+    } catch {
+      showToast("Network error updating plan", "error");
     }
   };
 
@@ -416,6 +438,7 @@ export default function AdminRbacPage() {
                       <th className="pb-3 font-semibold">Current Role</th>
                       <th className="pb-3 font-semibold">Status</th>
                       <th className="pb-3 font-semibold">Assigned Role (RBAC)</th>
+                      <th className="pb-3 font-semibold">Plan</th>
                       <th className="pb-3 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
@@ -494,6 +517,21 @@ export default function AdminRbacPage() {
                               <option value="merchant">🏪 Furniture Merchant</option>
                               <option value="customer">🛍️ Customer Account</option>
                             </select>
+                          </td>
+
+                          <td className="py-3">
+                            {u.role === "merchant" ? (
+                              <select
+                                value={u.plan}
+                                onChange={(e) => handlePlanChange(u.id, e.target.value as MerchantPlan)}
+                                className="px-2.5 py-1 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-1 focus:ring-stone-900 bg-white font-medium text-stone-800"
+                              >
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                              </select>
+                            ) : (
+                              <span className="text-stone-400">n/a</span>
+                            )}
                           </td>
 
                           <td className="py-3 text-right">

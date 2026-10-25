@@ -120,6 +120,59 @@ export const productImages = pgTable(
   ]
 );
 
+export const roomAssetCategories = pgTable("room_asset_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  icon: text("icon").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roomAssets = pgTable(
+  "room_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => roomAssetCategories.id),
+    accessLevel: text("access_level").notNull().default("free"), // free, pro, selected
+    placement: text("placement").notNull().default("floor"), // floor, wall
+    hidden: boolean("hidden").notNull().default(false),
+    currentVersionId: uuid("current_version_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("room_assets_category_idx").on(table.categoryId)]
+);
+
+export const roomAssetVersions = pgTable(
+  "room_asset_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => roomAssets.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    glbUrl: text("glb_url").notNull(),
+    storagePath: text("storage_path").notNull(),
+    previewUrl: text("preview_url"),
+    widthCm: numeric("width_cm").notNull(),
+    depthCm: numeric("depth_cm").notNull(),
+    heightCm: numeric("height_cm").notNull(),
+    fileSizeBytes: integer("file_size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("room_asset_versions_asset_idx").on(table.assetId)]
+);
+
+export const roomAssetAccess = pgTable("room_asset_access", {
+  assetId: uuid("asset_id")
+    .notNull()
+    .references(() => roomAssets.id, { onDelete: "cascade" }),
+  merchantId: text("merchant_id").notNull(),
+});
+
 export const generationAttempts = pgTable(
   "generation_attempts",
   {

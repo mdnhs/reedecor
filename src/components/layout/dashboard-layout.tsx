@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   Store,
+  Shapes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -69,6 +70,15 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
       icon: ShieldCheck,
       adminOnly: true,
       show: isSaasAdmin,
+      badge: "RBAC",
+    },
+    {
+      name: "Room Assets",
+      href: "/admin/assets",
+      icon: Shapes,
+      adminOnly: true,
+      show: isSaasAdmin,
+      badge: "",
     },
   ];
 
@@ -196,9 +206,9 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
                         />
                         {!sidebarCollapsed && <span>{item.name}</span>}
                       </div>
-                      {!sidebarCollapsed && (
+                      {!sidebarCollapsed && item.badge && (
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-amber-100 text-amber-900 border border-amber-200">
-                          RBAC
+                          {item.badge}
                         </span>
                       )}
                     </Link>

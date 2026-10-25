@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { StorageProvider, StorageUploadResult } from "./types";
+import { assetObjectPath } from "../assets/paths";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://aafouqxsgibfqjcxozii.supabase.co";
 const supabaseKey =
@@ -132,6 +133,42 @@ export class SupabaseStorageService implements StorageProvider {
     } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     return { path, publicUrl, sizeBytes: file.length, mimeType };
+  }
+
+  async uploadAssetFile(
+    file: Buffer,
+    kind: "glb" | "preview",
+    assetId: string,
+    version: number
+  ): Promise<StorageUploadResult> {
+    if (!this.client) {
+      throw new Error("Supabase storage is not configured; room assets need real storage.");
+    }
+
+    const path = assetObjectPath(assetId, version, kind, crypto.randomUUID());
+    const mimeType = kind === "glb" ? "model/gltf-binary" : "image/png";
+
+    await this.ensureBucket();
+
+    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+    if (error) {
+      throw new Error(`Failed to upload asset ${kind}: ${error.message}`);
+    }
+
+    const {
+      data: { publicUrl },
+    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+
+    return { path, publicUrl, sizeBytes: file.length, mimeType };
+  }
+
+  async removeAssetFiles(paths: string[]): Promise<void> {
+    if (!this.client || paths.length === 0) return;
+    await this.client.storage.from(BUCKET_NAME).remove(paths);
   }
 
   async uploadModelFile(
