@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { worldUnitsPerCm } from "@/lib/scenes/scale";
 import type { ViewerContext } from "./viewer-context";
 import { BackdropMenu } from "./backdrop-menu";
-import { createContactShadow, disposeContactShadow } from "./contact-shadow";
 import {
   applyBackdrop,
   disposeBackdrop,
@@ -94,7 +93,6 @@ export function ModelViewer({
   const [savingThumb, setSavingThumb] = useState(false);
   const [thumbError, setThumbError] = useState<string | null>(null);
 
-  const contactShadowRef = useRef<THREE.Mesh | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const initialCameraPos = useRef<THREE.Vector3>(new THREE.Vector3(1.6, 1.2, 1.9));
@@ -128,7 +126,7 @@ export function ModelViewer({
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     // Khronos Group PBR Neutral Tone Mapping: Preserves true color hue without filter while smoothly preventing highlight clipping on white surfaces
     renderer.toneMapping = THREE.NeutralToneMapping;
@@ -148,19 +146,14 @@ export function ModelViewer({
     scene.add(ambientLight);
 
     // Balanced Directional Key Light for soft shadows and depth
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.75);
-    keyLight.position.set(2.4, 4.2, 3.2);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    keyLight.position.set(2.5, 4.5, 3.5);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
     keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 0.5;
-    keyLight.shadow.camera.far = 14;
-    keyLight.shadow.camera.left = -1.8;
-    keyLight.shadow.camera.right = 1.8;
-    keyLight.shadow.camera.top = 1.8;
-    keyLight.shadow.camera.bottom = -1.8;
-    keyLight.shadow.bias = -0.0001;
-    keyLight.shadow.radius = 3.5;
+    keyLight.shadow.camera.far = 15;
+    keyLight.shadow.bias = -0.0002;
     scene.add(keyLight);
 
     // Subtle Fill Light from the side
@@ -174,11 +167,11 @@ export function ModelViewer({
     scene.add(topLight);
 
     // Subtle Ground Shadow Plane
-    const groundGeo = new THREE.PlaneGeometry(16, 16);
-    const groundMat = new THREE.ShadowMaterial({ opacity: 0.18 });
+    const groundGeo = new THREE.PlaneGeometry(12, 12);
+    const groundMat = new THREE.ShadowMaterial({ opacity: 0.12 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0.0004;
+    ground.position.y = 0;
     ground.receiveShadow = true;
     scene.add(ground);
 
@@ -278,13 +271,6 @@ export function ModelViewer({
 
         scene.add(currentModel);
 
-        const contactShadow = createContactShadow(currentModel);
-        if (contactShadow) {
-          contactShadow.visible = bgModeRef.current !== "transparent";
-          scene.add(contactShadow);
-          contactShadowRef.current = contactShadow;
-        }
-
         const tone = extractProductTone(currentModel);
         const context: ViewerContext = {
           scene,
@@ -350,8 +336,6 @@ export function ModelViewer({
       dracoLoader.dispose();
       pmremGenerator.dispose();
       envTexture.dispose();
-      disposeContactShadow(contactShadowRef.current);
-      contactShadowRef.current = null;
       disposeBackdrop(scene);
       sceneRef.current = null;
       rendererRef.current = null;
@@ -379,9 +363,6 @@ export function ModelViewer({
   useEffect(() => {
     bgModeRef.current = bgMode;
     if (sceneRef.current) applyBackdrop(sceneRef.current, bgMode, productTone);
-    if (contactShadowRef.current) {
-      contactShadowRef.current.visible = bgMode !== "transparent";
-    }
   }, [bgMode, productTone]);
 
   useEffect(() => {

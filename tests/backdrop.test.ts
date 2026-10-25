@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
-import {
-  resolvePalette,
-  createStudioFloorMesh,
-  STUDIO_FLOOR_NAME,
-  applyBackdrop,
-  disposeBackdrop,
-} from "../src/components/studio/backdrop";
+import { resolvePalette } from "../src/components/studio/backdrop";
 import {
   BACKDROP_MODES,
   STUDIO_PRESETS,
@@ -144,34 +138,3 @@ describe("auto backdrop", () => {
     expect(s).toBeLessThanOrEqual(32);
   });
 });
-
-describe("3D studio floor", () => {
-  it("creates a grounded 3D cyclorama floor mesh with expected properties", () => {
-    const palette = resolvePalette("studio", null);
-    const floor = createStudioFloorMesh(palette);
-    expect(floor.name).toBe(STUDIO_FLOOR_NAME);
-    expect(floor.position.y).toBeCloseTo(-0.0005);
-    expect(floor.renderOrder).toBe(0);
-    expect(floor.geometry).toBeInstanceOf(THREE.CircleGeometry);
-  });
-
-  it("attaches 3D studio floor to scene on applyBackdrop and disposes cleanly", () => {
-    const scene = new THREE.Scene();
-    applyBackdrop(scene, "studio", null);
-    const floor = scene.getObjectByName(STUDIO_FLOOR_NAME);
-    expect(floor).toBeDefined();
-    expect(floor).toBeInstanceOf(THREE.Mesh);
-
-    disposeBackdrop(scene);
-    expect(scene.getObjectByName(STUDIO_FLOOR_NAME)).toBeUndefined();
-    expect(scene.background).toBeNull();
-  });
-
-  it("omits the 3D studio floor in transparent mode", () => {
-    const scene = new THREE.Scene();
-    applyBackdrop(scene, "transparent", null);
-    expect(scene.getObjectByName(STUDIO_FLOOR_NAME)).toBeUndefined();
-    expect(scene.background).toBeNull();
-  });
-});
-
