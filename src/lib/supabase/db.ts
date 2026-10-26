@@ -443,7 +443,7 @@ export class SupabaseDbService {
   async getSystemSettings(): Promise<SystemSettings> {
     const fallback: SystemSettings = {
       id: "default",
-      meshyApiKey: process.env.MESHY_API_KEY || "your_meshy_api_key_here",
+      meshyApiKey: process.env.MESHY_API_KEY || "",
       meshyApiBaseUrl: process.env.MESHY_API_BASE_URL || "https://api.meshy.ai",
       meshyModel: process.env.MESHY_MODEL || "meshy-7.1",
       meshyGeometryResolution: process.env.MESHY_GEOMETRY_RESOLUTION || "standard",

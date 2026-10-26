@@ -18,7 +18,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StoredProduct } from "@/server/demo-store";
 import { useAuth } from "@/lib/auth/auth-context";
-import { SectionCards } from "@/components/dashboard/section-cards";
+import { SectionCards, type CreditSummary } from "@/components/dashboard/section-cards";
 import { ChartAreaInteractive } from "@/components/dashboard/chart-area-interactive";
 import { DataTable } from "@/components/dashboard/data-table";
 import { RecentCreations } from "@/components/dashboard/recent-creations";
@@ -48,6 +48,7 @@ export default function OverviewPage() {
   const generationOn = useFeature("model_generation");
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [credits, setCredits] = useState<CreditSummary | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -71,6 +72,20 @@ export default function OverviewPage() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (isCustomer || isSaasAdmin) return;
+    let ignore = false;
+    fetch("/api/credits/usage")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!ignore && json.success) setCredits({ remaining: json.data.remaining, allowance: json.data.allowance });
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [isCustomer, isSaasAdmin]);
 
   const canCreate = !isCustomer && generationOn;
   const storeHref = `/store/${user?.id || "demo-merchant-001"}`;
@@ -201,20 +216,20 @@ export default function OverviewPage() {
             ))}
           </section>
 
-          {loading ? (
+          {isCustomer ? null : loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-32 w-full rounded-2xl" />
               ))}
             </div>
           ) : (
-            <SectionCards products={products} />
+            <SectionCards products={products} credits={isSaasAdmin ? null : credits} />
           )}
         </div>
 
         <aside className="flex min-w-0 flex-col gap-4">
           <RecentCreations products={products} loading={loading} className="flex-1" />
-          <GenerationStatus products={products} loading={loading} />
+          {!isCustomer && <GenerationStatus products={products} loading={loading} />}
 
           <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-amber-100 to-pink-100 p-5">
             <div className="bg-gradient-brand absolute -bottom-8 -right-8 flex h-32 w-32 items-center justify-center rounded-full opacity-90">
@@ -234,9 +249,18 @@ export default function OverviewPage() {
           </div>
         </aside>
 
-        <div className="min-w-0 xl:col-span-3">
-          <ChartAreaInteractive />
-        </div>
+        {!isCustomer && (
+          <div className="min-w-0 xl:col-span-3">
+            {loading ? (
+              <Skeleton className="h-80 w-full rounded-2xl" />
+            ) : (
+              <ChartAreaInteractive
+                products={products}
+                scope={isSaasAdmin ? "Finished 3D generation attempts across all merchants" : "Finished 3D generation attempts across your products"}
+              />
+            )}
+          </div>
+        )}
 
         <div className="min-w-0 xl:col-span-3">
           {loading ? <Skeleton className="h-64 w-full rounded-2xl" /> : <DataTable products={products} />}

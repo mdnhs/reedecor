@@ -5,12 +5,12 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth/auth-context";
 import {
   Database,
-  HardDrive,
   Cpu,
   ShieldCheck,
   UserCheck,
@@ -45,20 +45,20 @@ export default function SettingsPage() {
   const [copiedStoreLink, setCopiedStoreLink] = useState(false);
 
   // SaaS Admin Platform Settings (Stored in Supabase DB)
-  const [meshyApiKey, setMeshyApiKey] = useState("your_meshy_api_key_here");
+  const [meshyApiKey, setMeshyApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [meshyApiBaseUrl, setMeshyApiBaseUrl] = useState("https://api.meshy.ai");
   const [meshyModel, setMeshyModel] = useState("meshy-7.1");
   const [meshyGeometryResolution, setMeshyGeometryResolution] = useState("standard");
   const [meshyTextureResolution, setMeshyTextureResolution] = useState("2k");
   const [meshyCreditsPerGeneration, setMeshyCreditsPerGeneration] = useState("20");
-  const [defaultGenerationPipeline, setDefaultGenerationPipeline] = useState<
-    "image_to_3d" | "multi_image_to_3d"
-  >("multi_image_to_3d");
   const [usdToBdtRate, setUsdToBdtRate] = useState("122.50");
   const [costPerCreditUsd, setCostPerCreditUsd] = useState("0.05");
   const [savingAdminSettings, setSavingAdminSettings] = useState(false);
   const [adminSettingsSaved, setAdminSettingsSaved] = useState(false);
+  const [adminSettingsLoaded, setAdminSettingsLoaded] = useState(false);
+  const [adminSettingsError, setAdminSettingsError] = useState<string | null>(null);
+  const [adminReloadKey, setAdminReloadKey] = useState(0);
 
   const merchantStoreId = user?.id || "demo-merchant-001";
   const storeUrl = origin ? `${origin}/store/${merchantStoreId}` : `/store/${merchantStoreId}`;
@@ -93,9 +93,11 @@ export default function SettingsPage() {
     let ignore = false;
     async function loadAdminSettings() {
       if (!isSaasAdmin) return;
+      setAdminSettingsError(null);
       try {
         const res = await fetch("/api/admin/settings");
         const json = await res.json();
+        if (!ignore && !json.success) setAdminSettingsError(json.error || "Could not load platform settings.");
         if (!ignore && json.success && json.data) {
           if (json.data.meshyApiKey) setMeshyApiKey(json.data.meshyApiKey);
           if (json.data.meshyApiBaseUrl) setMeshyApiBaseUrl(json.data.meshyApiBaseUrl);
@@ -109,16 +111,18 @@ export default function SettingsPage() {
           if (json.data.usdToBdtRate) setUsdToBdtRate(String(json.data.usdToBdtRate));
           if (json.data.costPerCreditUsd)
             setCostPerCreditUsd(String(json.data.costPerCreditUsd));
+          setAdminSettingsLoaded(true);
         }
       } catch (err) {
         console.error("Failed to load admin settings:", err);
+        if (!ignore) setAdminSettingsError("Could not load platform settings.");
       }
     }
     loadAdminSettings();
     return () => {
       ignore = true;
     };
-  }, [isSaasAdmin]);
+  }, [isSaasAdmin, adminReloadKey]);
 
   async function handleSaveMerchantSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -157,6 +161,14 @@ export default function SettingsPage() {
 
   async function handleSaveAdminSettings(e: React.FormEvent) {
     e.preventDefault();
+    const creditsPerGeneration = parseInt(meshyCreditsPerGeneration, 10);
+    const rate = parseFloat(usdToBdtRate);
+    const costPerCredit = parseFloat(costPerCreditUsd);
+    if (!(creditsPerGeneration > 0) || !(rate > 0) || !(costPerCredit > 0)) {
+      setAdminSettingsError("Credits per generation, exchange rate and cost per credit must all be positive numbers.");
+      return;
+    }
+    setAdminSettingsError(null);
     setSavingAdminSettings(true);
     setAdminSettingsSaved(false);
 
@@ -170,9 +182,9 @@ export default function SettingsPage() {
           meshyModel,
           meshyGeometryResolution,
           meshyTextureResolution,
-          meshyCreditsPerGeneration: parseInt(meshyCreditsPerGeneration, 10) || 20,
-          usdToBdtRate: parseFloat(usdToBdtRate) || 122.5,
-          costPerCreditUsd: parseFloat(costPerCreditUsd) || 0.05,
+          meshyCreditsPerGeneration: creditsPerGeneration,
+          usdToBdtRate: rate,
+          costPerCreditUsd: costPerCredit,
         }),
       });
       const json = await res.json();
@@ -180,11 +192,11 @@ export default function SettingsPage() {
         setAdminSettingsSaved(true);
         setTimeout(() => setAdminSettingsSaved(false), 3500);
       } else {
-        alert(json.error || "Failed to update system settings in DB");
+        setAdminSettingsError(json.error || "Failed to update system settings.");
       }
     } catch (err) {
       console.error("Failed to save admin settings:", err);
-      alert("Error saving settings to database.");
+      setAdminSettingsError("Error saving settings. Check your connection and try again.");
     } finally {
       setSavingAdminSettings(false);
     }
@@ -238,6 +250,23 @@ export default function SettingsPage() {
             </div>
 
             <CardContent className="p-6">
+              {adminSettingsError && (
+                <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  <span>{adminSettingsError}</span>
+                  {!adminSettingsLoaded && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setAdminReloadKey((k) => k + 1)}>
+                      Try again
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!adminSettingsLoaded && !adminSettingsError ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-9 w-full" />
+                  <Skeleton className="h-9 w-full" />
+                  <Skeleton className="h-9 w-2/3" />
+                </div>
+              ) : (
               <form onSubmit={handleSaveAdminSettings} className="space-y-6">
                 {/* Section A: Meshy AI Multi-Image API Settings */}
                 <div className="space-y-3.5">
@@ -301,32 +330,6 @@ export default function SettingsPage() {
                         required
                       />
                     </div>
-                  </div>
-
-                  {/* 3D Generation Pipeline Engine Selection */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                        3D GENERATION PIPELINE
-                      </span>
-                      <span className="text-[10px] text-amber-700 font-normal">Merchant & Studio Default</span>
-                    </label>
-                    <select
-                      value={defaultGenerationPipeline}
-                      onChange={(e) => setDefaultGenerationPipeline(e.target.value as "image_to_3d" | "multi_image_to_3d")}
-                      className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
-                    >
-                      <option value="multi_image_to_3d">
-                        Multi-Image to 3D (4 Angles: Front, Back, Left, Right — 360° True Geometry)
-                      </option>
-                      <option value="image_to_3d">
-                        Image to 3D (Single Photo — AI Depth & Fast Asset Generation)
-                      </option>
-                    </select>
-                    <p className="text-[11px] text-stone-500">
-                      Merchants can choose between <strong>Image to 3D</strong> (1 photo) or <strong>Multi-Image to 3D</strong> (4 angles) when creating new furniture pieces.
-                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -445,7 +448,7 @@ export default function SettingsPage() {
 
                     <Button
                       type="submit"
-                      disabled={savingAdminSettings}
+                      disabled={savingAdminSettings || !adminSettingsLoaded}
                       className="bg-amber-700 hover:bg-amber-800 text-white text-xs h-9 px-5 shadow-xs font-semibold"
                     >
                       {savingAdminSettings ? "Saving to DB..." : "Save Platform Configuration"}
@@ -453,6 +456,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </form>
+              )}
             </CardContent>
           </Card>
         ) : null}
@@ -696,80 +700,28 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* ================================================================= */}
-        {/* 4. Integration & Provider Statuses                                */}
-        {/* ================================================================= */}
-        <Card className="border-stone-200/80 bg-white">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-stone-900">
-              Integration & Provider Statuses
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Connected cloud databases, storage buckets, and AI 3D providers
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg border border-stone-100 bg-stone-50/50">
-              <div className="flex items-center gap-3">
-                <Database className="h-4 w-4 text-emerald-600" />
-                <div>
-                  <p className="text-xs font-semibold text-stone-900">
-                    Supabase Cloud Database (public.system_settings & tables)
-                  </p>
-                  <p className="text-[11px] text-stone-500">
-                    Project Ref: aafouqxsgibfqjcxozii • Direct REST/RPC Query Engine
-                  </p>
+        {isSaasAdmin && adminSettingsLoaded && (
+          <Card className="border-stone-200/80 bg-white">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-stone-900">AI Provider</CardTitle>
+              <CardDescription className="text-xs">Meshy settings currently stored for 3D generation</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50/50 p-3">
+                <div className="flex items-center gap-3">
+                  <Cpu className="h-4 w-4 text-amber-600" />
+                  <div>
+                    <p className="text-xs font-semibold text-stone-900">Meshy AI</p>
+                    <p className="text-xs text-stone-500">
+                      Model: {meshyModel} • {meshyTextureResolution.toUpperCase()} texture • {meshyCreditsPerGeneration} credits per multi-angle model
+                    </p>
+                  </div>
                 </div>
+                <Badge variant={meshyApiKey ? "success" : "secondary"}>{meshyApiKey ? "API key saved" : "No API key"}</Badge>
               </div>
-              <Badge variant="success">Active</Badge>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg border border-stone-100 bg-stone-50/50">
-              <div className="flex items-center gap-3">
-                <HardDrive className="h-4 w-4 text-emerald-600" />
-                <div>
-                  <p className="text-xs font-semibold text-stone-900">
-                    Supabase Storage & IndexedDB Cache
-                  </p>
-                  <p className="text-[11px] text-stone-500">
-                    Bucket: furniture-3d-studio + Browser local IDB
-                  </p>
-                </div>
-              </div>
-              <Badge variant="success">Ready</Badge>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg border border-stone-100 bg-stone-50/50">
-              <div className="flex items-center gap-3">
-                <Cpu className="h-4 w-4 text-amber-600" />
-                <div>
-                  <p className="text-xs font-semibold text-stone-900">
-                    Meshy AI Multi-Image to 3D API (Dynamic DB Config)
-                  </p>
-                  <p className="text-[11px] text-stone-500">
-                    Model: {meshyModel} • {meshyTextureResolution.toUpperCase()} Texture • {meshyCreditsPerGeneration} Credits/Gen
-                  </p>
-                </div>
-              </div>
-              <Badge variant="secondary">Configured in DB</Badge>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg border border-stone-100 bg-stone-50/50">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="h-4 w-4 text-stone-600" />
-                <div>
-                  <p className="text-xs font-semibold text-stone-900">
-                    Merchant Authentication & RBAC
-                  </p>
-                  <p className="text-[11px] text-stone-500">
-                    Demo Merchant Profile & Role-Based Access
-                  </p>
-                </div>
-              </div>
-              <Badge variant="secondary">Enabled</Badge>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

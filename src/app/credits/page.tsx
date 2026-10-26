@@ -168,11 +168,11 @@ export default function CreditsPage() {
                 <Skeleton className="h-8 w-16" />
               ) : (
                 <div className="text-2xl font-bold tracking-tight text-stone-900">
-                  {data?.totalAttempts || 0}
+                  {data ? data.totalAttempts : "—"}
                 </div>
               )}
               <p className="text-xs text-stone-500 mt-1">
-                {data?.completedAttempts || 0} completed • {data?.failedAttempts || 0} failed
+                {data ? `${data.completedAttempts} completed • ${data.failedAttempts} failed` : "—"}
               </p>
             </CardContent>
           </Card>

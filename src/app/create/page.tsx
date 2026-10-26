@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Upload,
@@ -95,6 +95,27 @@ export default function CreateProductPage() {
   // Review & Generation State
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [creditInfo, setCreditInfo] = useState<{ remaining: number; single: number; multi: number } | null>(null);
+
+  useEffect(() => {
+    if (isCustomer) return;
+    let ignore = false;
+    fetch("/api/credits/usage")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!ignore && json.success) {
+          setCreditInfo({
+            remaining: json.data.remaining,
+            single: json.data.singleImageCost,
+            multi: json.data.multiImageCost,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [isCustomer]);
 
   // Handle Image Selection
   const handleFileSelect = (viewType: AngleView, file: File) => {
@@ -709,9 +730,11 @@ export default function CreateProductPage() {
                 <span className="font-bold text-stone-800">2K Resolution</span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">Estimated Cost</span>
+                <span className="text-stone-400 block text-xs">Estimated Cost</span>
                 <span className="font-bold text-amber-700">
-                  {generationMode === "image_to_3d" ? "10 Demo Credits" : "20 Demo Credits"}
+                  {creditInfo
+                    ? `${generationMode === "image_to_3d" ? creditInfo.single : creditInfo.multi} credits (${creditInfo.remaining} left)`
+                    : "—"}
                 </span>
               </div>
             </div>
