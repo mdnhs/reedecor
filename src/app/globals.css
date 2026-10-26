@@ -1,50 +1,100 @@
 @import "tailwindcss";
 
+/* Lumora-style palette: stone becomes a cool lavender neutral, amber becomes the violet accent */
+@theme {
+  --color-stone-50: #f7f7fc;
+  --color-stone-100: #f0f0f8;
+  --color-stone-200: #e4e4f0;
+  --color-stone-300: #cfd0e0;
+  --color-stone-400: #9c9db5;
+  --color-stone-500: #75768f;
+  --color-stone-600: #5a5b72;
+  --color-stone-700: #45465b;
+  --color-stone-800: #2c2d40;
+  --color-stone-900: #17182b;
+  --color-stone-950: #0d0e1d;
+
+  --color-amber-50: #f4f2ff;
+  --color-amber-100: #ebe7ff;
+  --color-amber-200: #d9d2ff;
+  --color-amber-300: #bfb2ff;
+  --color-amber-400: #a08cff;
+  --color-amber-500: #8467fb;
+  --color-amber-600: #7150f0;
+  --color-amber-700: #6141dc;
+  --color-amber-800: #5034b5;
+  --color-amber-900: #3f2a8c;
+  --color-amber-950: #261954;
+}
+
 @layer base {
   :root {
     color-scheme: light;
-    /* Pure, warm luxury light mode */
-    --background: 40 20% 98.8%;
-    --foreground: 24 10% 12%;
+    --background: 240 45% 98%;
+    --foreground: 236 30% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 24 10% 12%;
+    --card-foreground: 236 30% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 24 10% 12%;
+    --popover-foreground: 236 30% 13%;
 
-    --primary: 24 10% 12%;
+    --primary: 252 69% 56%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 12% 95%;
-    --secondary-foreground: 24 10% 15%;
+    --secondary: 240 30% 96%;
+    --secondary-foreground: 236 30% 15%;
 
-    --muted: 40 10% 94%;
-    --muted-foreground: 24 8% 46%;
+    --muted: 240 30% 95%;
+    --muted-foreground: 236 10% 51%;
 
-    --accent: 32 45% 94%;
-    --accent-foreground: 28 65% 24%;
+    --accent: 250 100% 95%;
+    --accent-foreground: 252 54% 35%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 90%;
-    --input: 40 10% 90%;
-    --ring: 24 10% 12%;
+    --border: 240 28% 92%;
+    --input: 240 28% 92%;
+    --ring: 252 69% 56%;
 
-    --radius: 0.75rem;
-  }
-}
+    --radius: 1rem;
+  }}
 
 html,
 body {
   height: 100%;
   overflow: hidden;
   background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(60% 55% at 0% 0%, #cfe0ff 0%, transparent 70%),
+    radial-gradient(50% 50% at 100% 0%, #ecdcff 0%, transparent 70%),
+    radial-gradient(55% 60% at 100% 100%, #ffe1f0 0%, transparent 70%),
+    radial-gradient(50% 50% at 0% 100%, #e3e6ff 0%, transparent 70%);
+  background-attachment: fixed;
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.glass-panel {
+  background-color: rgb(255 255 255 / 0.62);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  box-shadow: 0 1px 2px 0 rgb(23 24 43 / 0.03), 0 24px 48px -24px rgb(97 65 220 / 0.18);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+.text-gradient-brand {
+  background-image: linear-gradient(90deg, #3b82f6 0%, #6141dc 55%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-brand {
+  background-image: linear-gradient(135deg, #4f7cff 0%, #6141dc 55%, #a855f7 100%);
 }
 
 /* Studio subtle shadows */

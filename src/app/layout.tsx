@@ -27,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`}>
-      <body className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))] font-sans antialiased">
+      <body className="min-h-screen text-[hsl(var(--foreground))] font-sans antialiased">
         <AuthProvider>
           <FeaturesProvider>{children}</FeaturesProvider>
         </AuthProvider>

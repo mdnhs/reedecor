@@ -2,19 +2,49 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, ArrowRight, Sparkles, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Box,
+  Coins,
+  ImagePlus,
+  Layers,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  type LucideIcon,
+} from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StoredProduct } from "@/server/demo-store";
 import { useAuth } from "@/lib/auth/auth-context";
 import { SectionCards } from "@/components/dashboard/section-cards";
 import { ChartAreaInteractive } from "@/components/dashboard/chart-area-interactive";
 import { DataTable } from "@/components/dashboard/data-table";
+import { RecentCreations } from "@/components/dashboard/recent-creations";
+import { GenerationStatus } from "@/components/dashboard/generation-status";
 import { useFeature } from "@/lib/features/features-context";
 
+interface QuickAction {
+  title: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  tile: string;
+  show: boolean;
+}
+
+function Orb({ className }: { className: string }) {
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute rounded-full bg-radial-[at_30%_30%] from-white via-sky-200 to-amber-400 opacity-80 shadow-xl shadow-amber-500/20 ${className}`}
+    />
+  );
+}
+
 export default function OverviewPage() {
-  const { isSaasAdmin, isCustomer } = useAuth();
+  const { user, isSaasAdmin, isCustomer } = useAuth();
   const generationOn = useFeature("model_generation");
   const [products, setProducts] = useState<StoredProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,83 +72,175 @@ export default function OverviewPage() {
     };
   }, []);
 
+  const canCreate = !isCustomer && generationOn;
+  const storeHref = `/store/${user?.id || "demo-merchant-001"}`;
+
+  const quickActions: QuickAction[] = [
+    {
+      title: "Create 3D Model",
+      description: "Turn product photos into an AI-generated model",
+      href: "/create",
+      icon: ImagePlus,
+      tile: "from-pink-400 to-rose-500",
+      show: canCreate,
+    },
+    {
+      title: "My Products",
+      description: "Manage your furniture catalog",
+      href: "/products",
+      icon: Box,
+      tile: "from-amber-400 to-amber-700",
+      show: true,
+    },
+    {
+      title: "Public Store",
+      description: "See your storefront as customers do",
+      href: storeHref,
+      icon: Store,
+      tile: "from-sky-400 to-blue-600",
+      show: true,
+    },
+    {
+      title: "Credits & Usage",
+      description: "Track generation credits",
+      href: "/credits",
+      icon: Coins,
+      tile: "from-orange-300 to-orange-500",
+      show: !isCustomer,
+    },
+    {
+      title: "Admin RBAC",
+      description: "Manage users and roles",
+      href: "/admin/rbac",
+      icon: ShieldCheck,
+      tile: "from-emerald-400 to-teal-600",
+      show: isSaasAdmin,
+    },
+  ];
+  const visibleActions = quickActions.filter((a) => a.show).slice(0, 4);
+
   return (
-    <DashboardLayout
-      title="Studio Overview"
-      subtitle="shadcn dashboard-01 block • Furniture catalog, 3D mesh telemetry & generation controls"
-    >
-      <div className="space-y-6">
-        {/* Hero Welcome Banner */}
-        <div className="relative overflow-hidden rounded-2xl border border-stone-200/90 bg-white p-6 sm:p-7 shadow-xs">
-          <div className="relative z-10 max-w-2xl space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/70 text-amber-900 text-xs font-semibold">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-              <span>
-                {isSaasAdmin
-                  ? "SaaS Admin Dashboard — System Overview & RBAC"
-                  : isCustomer
-                  ? "Customer Storefront — 3D WebGL Furniture Collection"
-                  : "Merchant 3D Studio — Multi-Angle AI Generation"}
-              </span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-display">
-              {isCustomer
-                ? "Browse modern furniture pieces in interactive 3D WebGL"
-                : "Transform furniture photographs into interactive 3D models"}
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-500 max-w-xl">
-              {isCustomer
-                ? "Rotate, zoom, and inspect physical dimensions of hand-crafted furniture pieces directly in your browser."
-                : "Upload 4 perspective angles (Front, Back, Left, Right). Meshy AI reconstructs realistic 3D geometries with 2K PBR materials ready for WebGL inspection and GLB export."}
+    <DashboardLayout title="Home" subtitle="Furniture catalog, 3D models and generation activity">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 min-w-0 xl:col-span-2">
+          <section className="relative overflow-hidden rounded-3xl bg-linear-to-b from-white/40 to-white/0 px-4 pb-6 pt-16 text-center sm:pt-20">
+            <Orb className="left-6 top-8 h-12 w-12 sm:left-14" />
+            <Orb className="right-8 top-6 h-20 w-20 sm:right-20" />
+            <Orb className="right-4 top-40 h-8 w-8 sm:right-10" />
+            <div
+              aria-hidden
+              className="bg-gradient-brand pointer-events-none absolute left-1/2 top-0 h-40 w-72 -translate-x-1/2 rounded-full opacity-25 blur-3xl"
+            />
+
+            <p className="relative text-xs font-semibold uppercase tracking-widest text-stone-500">
+              {isCustomer ? "Shop in three dimensions" : "Turn photos into 3D"}
             </p>
-            <div className="pt-2 flex flex-wrap items-center gap-3">
-              {isSaasAdmin && (
-                <Link href="/admin/rbac">
-                  <Button className="gap-2 bg-stone-900 hover:bg-stone-800 text-white shadow-xs">
-                    <ShieldCheck className="h-4 w-4 text-amber-400" />
-                    <span>Manage RBAC Users</span>
-                  </Button>
-                </Link>
-              )}
-              {!isCustomer && generationOn && (
-                <Link href="/create">
-                  <Button className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs">
-                    <Plus className="h-4 w-4" />
-                    <span>Create 3D Model</span>
-                  </Button>
-                </Link>
-              )}
-              <Link href="/products">
-                <Button variant="outline" className="gap-1.5 border-stone-200 text-stone-700 hover:bg-stone-50">
-                  <span>View Full Catalog</span>
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+            <h2 className="relative mt-3 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">
+              {isCustomer ? "Explore " : "Create "}
+              <span className="text-gradient-brand">Anything</span>
+            </h2>
+            <p className="relative mx-auto mt-3 max-w-md text-sm text-stone-500">
+              {isCustomer
+                ? "Rotate, zoom and inspect real dimensions of furniture right in your browser."
+                : "Upload front, back, left and right photos. Meshy AI reconstructs a 3D model with PBR materials, ready for WebGL and GLB export."}
+            </p>
+
+            <Link
+              href={canCreate ? "/create" : "/products"}
+              className="group relative mx-auto mt-7 flex max-w-xl items-center gap-3 rounded-3xl bg-white p-3 pl-4 text-left shadow-xl shadow-amber-900/5 transition-shadow hover:shadow-amber-900/10"
+            >
+              <Sparkles className="h-5 w-5 shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-stone-500">
+                  {canCreate ? "Upload product photos to generate a 3D model…" : "Browse the 3D furniture catalog…"}
+                </p>
+                {canCreate && (
+                  <div className="mt-2 hidden flex-wrap gap-1.5 sm:flex">
+                    {["Single image", "Multi-angle", "PBR textures"].map((chip) => (
+                      <span
+                        key={chip}
+                        className="rounded-full border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-600"
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className="bg-gradient-brand flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-lg shadow-amber-700/30 transition-transform group-hover:translate-x-0.5">
+                <ArrowRight className="h-5 w-5" />
+              </span>
+            </Link>
+            {canCreate && (
+              <p className="relative mt-3 text-xs text-stone-400">
+                3D models are AI-generated by Meshy from your photos.
+              </p>
+            )}
+          </section>
+
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {visibleActions.map((action) => (
+              <Link
+                key={action.title}
+                href={action.href}
+                className="group rounded-3xl bg-white/70 p-4 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-amber-900/5"
+              >
+                <div className="flex items-start justify-between">
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-md ${action.tile}`}
+                  >
+                    <action.icon className="h-5 w-5" />
+                  </span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-500 group-hover:bg-amber-50 group-hover:text-amber-700">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <p className="mt-4 text-sm font-semibold">{action.title}</p>
+                <p className="mt-1 text-xs text-stone-500">{action.description}</p>
               </Link>
+            ))}
+          </section>
+
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+              ))}
             </div>
-          </div>
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-50/40 via-stone-50/20 to-transparent pointer-events-none hidden md:block" />
+          ) : (
+            <SectionCards products={products} />
+          )}
         </div>
 
-        {/* 1. shadcn dashboard-01: SectionCards (KPI Metrics) */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-32 w-full rounded-xl" />
-            ))}
+        <aside className="flex min-w-0 flex-col gap-4">
+          <RecentCreations products={products} loading={loading} className="flex-1" />
+          <GenerationStatus products={products} loading={loading} />
+
+          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-amber-100 to-pink-100 p-5">
+            <div className="bg-gradient-brand absolute -bottom-8 -right-8 flex h-32 w-32 items-center justify-center rounded-full opacity-90">
+              <Layers className="h-10 w-10 text-white/80" />
+            </div>
+            <p className="relative font-display text-base font-bold">3D Room Studio</p>
+            <p className="relative mt-1 max-w-48 text-xs text-stone-600">
+              Stage your products in a room scene before you publish.
+            </p>
+            <Link
+              href="/products"
+              className="relative mt-4 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold shadow-sm hover:text-amber-700"
+            >
+              Open products
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
-        ) : (
-          <SectionCards products={products} />
-        )}
+        </aside>
 
-        {/* 2. shadcn dashboard-01: ChartAreaInteractive */}
-        <ChartAreaInteractive />
+        <div className="min-w-0 xl:col-span-3">
+          <ChartAreaInteractive />
+        </div>
 
-        {/* 3. shadcn dashboard-01: DataTable */}
-        {loading ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
-        ) : (
-          <DataTable products={products} />
-        )}
+        <div className="min-w-0 xl:col-span-3">
+          {loading ? <Skeleton className="h-64 w-full rounded-2xl" /> : <DataTable products={products} />}
+        </div>
       </div>
     </DashboardLayout>
   );

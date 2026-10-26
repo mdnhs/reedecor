@@ -25,7 +25,7 @@ export function SectionCards({ products }: SectionCardsProps) {
   const successRate = totalAttempts > 0 ? ((completedModels / totalAttempts) * 100).toFixed(1) : "96.4";
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
       {/* Card 1: Total 3D Models */}
       <Card className="bg-white border-stone-200/80 shadow-xs hover:border-stone-300 transition-all">
         <CardHeader className="relative pb-2">
