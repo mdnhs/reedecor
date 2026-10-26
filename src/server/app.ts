@@ -1,4 +1,4 @@
-import { Hono, Context } from "hono";
+import { Hono, Context, type MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
@@ -6,12 +6,21 @@ import { inMemoryStore, StoredProduct } from "./demo-store";
 import { supabaseDb } from "@/lib/supabase/db";
 import { meshyClient } from "@/lib/meshy/client";
 import { storageService } from "@/lib/storage/supabase-storage";
-import { DEMO_MERCHANT } from "@/lib/constants";
 import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
 import { assetRoutes } from "./asset-routes";
 import { sceneRoutes } from "./scene-routes";
 import { featureRoutes } from "./feature-routes";
 import { featureFlags, featureOffResponse, requireFeature } from "./feature-service";
+import { canManageProduct, isDemoMode, isStaff, PUBLIC_REGISTRATION_ROLES } from "./access";
+import { createFailureLimiter } from "./rate-limit";
+import {
+  isAllowedMeshyBaseUrl,
+  isAllowedModelUrl,
+  MASK_PREFIX,
+  maskSecret,
+  MAX_PROXY_BYTES,
+  readBodyWithLimit,
+} from "./proxy-allowlist";
 
 export const app = new Hono().basePath("/api");
 
@@ -32,6 +41,37 @@ async function getCurrentUser(c: Context): Promise<AppUser | null> {
   return null;
 }
 
+type Guarded<T> = T | { error: Response };
+
+async function requireStaff(c: Context): Promise<Guarded<{ user: AppUser }>> {
+  const user = await getCurrentUser(c);
+  if (!user) return { error: c.json({ success: false, error: "Sign in required." }, 401) };
+  if (!isStaff(user)) {
+    return { error: c.json({ success: false, error: "Merchant or admin access required." }, 403) };
+  }
+  return { user };
+}
+
+const staffOnly: MiddlewareHandler = async (c, next) => {
+  const staff = await requireStaff(c);
+  if ("error" in staff) return staff.error;
+  await next();
+};
+
+async function requireManagedProduct(
+  c: Context,
+  id: string
+): Promise<Guarded<{ user: AppUser; product: StoredProduct }>> {
+  const staff = await requireStaff(c);
+  if ("error" in staff) return staff;
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
+  if (!product) return { error: c.json({ success: false, error: "Product not found" }, 404) };
+  if (!canManageProduct(staff.user, product)) {
+    return { error: c.json({ success: false, error: "You can only manage your own products." }, 403) };
+  }
+  return { user: staff.user, product };
+}
+
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -39,7 +79,11 @@ const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["saas_admin", "merchant", "customer"]).default("customer"),
+  role: z.enum(PUBLIC_REGISTRATION_ROLES).default("customer"),
+});
+
+const adminCreateUserSchema = registerSchema.extend({
+  role: z.enum(["saas_admin", "merchant", "customer"]),
 });
 
 const loginSchema = z.object({
@@ -121,22 +165,11 @@ const createProductSchema = z
 app.get("/auth/me", async (c) => {
   const user = await getCurrentUser(c);
   if (!user) {
-    // If not authenticated, return default merchant context in demo mode
-    return c.json({
-      success: true,
-      data: {
-        id: DEMO_MERCHANT.id,
-        email: DEMO_MERCHANT.email,
-        name: DEMO_MERCHANT.name,
-        role: "merchant" as UserRole,
-        status: "active",
-        isGuestFallback: true,
-      },
-    });
+    return c.json({ success: false, error: "Not signed in", data: { demoMode: isDemoMode() } }, 401);
   }
   return c.json({
     success: true,
-    data: user,
+    data: { ...user, demoMode: isDemoMode() },
   });
 });
 
@@ -165,13 +198,21 @@ app.post("/auth/register", zValidator("json", registerSchema), async (c) => {
 });
 
 // 3. Login
+const loginFailures = createFailureLimiter({ limit: 5, windowMs: 15 * 60_000 });
+
 app.post("/auth/login", zValidator("json", loginSchema), async (c) => {
   const { email, password } = c.req.valid("json");
+  const throttleKey = email.trim().toLowerCase();
+  if (loginFailures.isBlocked(throttleKey)) {
+    return c.json({ success: false, error: "Too many sign-in attempts. Try again in 15 minutes." }, 429);
+  }
   try {
     const user = await authService.verifyCredentials(email, password);
     if (!user) {
+      loginFailures.recordFailure(throttleKey);
       return c.json({ success: false, error: "Invalid email or password" }, 401);
     }
+    loginFailures.reset(throttleKey);
 
     const token = await authService.createSession(user.id);
 
@@ -204,6 +245,9 @@ app.post("/auth/logout", async (c) => {
 
 // 5. One-click Demo Role Switcher (For easy sandbox switching between saas_admin, merchant, customer)
 app.post("/auth/switch-demo", zValidator("json", switchDemoSchema), async (c) => {
+  if (!isDemoMode()) {
+    return c.json({ success: false, error: "Not found" }, 404);
+  }
   const { role } = c.req.valid("json");
   await authService.ensureSeedUsers();
 
@@ -238,6 +282,25 @@ app.post("/auth/switch-demo", zValidator("json", switchDemoSchema), async (c) =>
 // ---------------------------------------------------------------------------
 // RBAC User Management Endpoints (SaaS Admin Only)
 // ---------------------------------------------------------------------------
+
+// Admin-created accounts never touch the caller's session cookie
+app.post("/admin/users", zValidator("json", adminCreateUserSchema), async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser || currentUser.role !== "saas_admin") {
+    return c.json({ success: false, error: "Access denied. SaaS Admin privilege required." }, 403);
+  }
+
+  const { name, email, password, role } = c.req.valid("json");
+  try {
+    const user = await authService.createUser(email, password, name, role as UserRole);
+    return c.json({ success: true, data: user }, 201);
+  } catch (err: unknown) {
+    return c.json(
+      { success: false, error: err instanceof Error ? err.message : "Could not create user" },
+      400
+    );
+  }
+});
 
 // 6. List all users (Admin RBAC dashboard)
 app.get("/admin/users", async (c) => {
@@ -360,12 +423,20 @@ app.route("/", featureRoutes(getCurrentUser));
 
 // List Products (Accessible to All: Customer, Merchant, SaaS Admin)
 app.get("/products", async (c) => {
+  const currentUser = await getCurrentUser(c);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Sign in required." }, 401);
+  }
+
   const dbProducts = await supabaseDb.getAllProducts();
   const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
-  return c.json({
-    success: true,
-    data: products,
-  });
+  const visible =
+    currentUser.role === "saas_admin"
+      ? products
+      : currentUser.role === "merchant"
+      ? products.filter((p) => p.merchantId === currentUser.id)
+      : products.filter((p) => p.status === "completed");
+  return c.json({ success: true, data: visible });
 });
 
 // Get Product By ID (Accessible to All)
@@ -375,28 +446,23 @@ app.get("/products/:id", async (c) => {
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
+  if (product.status !== "completed" && !canManageProduct(await getCurrentUser(c), product)) {
+    return c.json({ success: false, error: "Product not found" }, 404);
+  }
   return c.json({ success: true, data: product });
 });
 
 // Create Product (Merchant or SaaS Admin Only)
-app.post("/products", requireFeature("model_generation"), zValidator("json", createProductSchema), async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      {
-        success: false,
-        error: "Customer accounts are view-only. Merchant permission is required to create furniture.",
-      },
-      403
-    );
-  }
+app.post("/products", requireFeature("model_generation"), staffOnly, zValidator("json", createProductSchema), async (c) => {
+  const staff = await requireStaff(c);
+  if ("error" in staff) return staff.error;
 
   const body = c.req.valid("json");
   const id = `prod-${Date.now()}`;
 
   const newProduct: StoredProduct = {
     id,
-    merchantId: currentUser ? currentUser.id : DEMO_MERCHANT.id,
+    merchantId: staff.user.id,
     name: body.name,
     category: body.category,
     description: body.description || null,
@@ -429,28 +495,12 @@ app.post("/products", requireFeature("model_generation"), zValidator("json", cre
 const THUMBNAIL_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const THUMBNAIL_MAX_BYTES = 1.5 * 1024 * 1024;
 
-// Set Product Thumbnail: anyone may set the first (auto) thumbnail, replacing it needs the owner or an admin
+// Set Product Thumbnail (owner or admin)
 app.post("/products/:id/thumbnail", async (c) => {
   if (!(await featureFlags.isEnabled("capture_thumbnails"))) return featureOffResponse(c);
-  const currentUser = await getCurrentUser(c);
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
-  if (!product) {
-    return c.json({ success: false, error: "Product not found" }, 404);
-  }
-
-  if (product.thumbnailUrl) {
-    if (!currentUser) {
-      return c.json({ success: false, error: "Sign in to change the thumbnail." }, 401);
-    }
-    const isOwner = currentUser.role === "merchant" && currentUser.id === product.merchantId;
-    if (currentUser.role !== "saas_admin" && !isOwner) {
-      return c.json(
-        { success: false, error: "Only the product owner or an admin can change the thumbnail." },
-        403
-      );
-    }
-  }
+  const guard = await requireManagedProduct(c, id);
+  if ("error" in guard) return guard.error;
 
   const mimeType = (c.req.header("Content-Type") || "").split(";")[0].trim();
   if (!THUMBNAIL_MIME_TYPES.includes(mimeType)) {
@@ -476,19 +526,9 @@ app.post("/products/:id/thumbnail", async (c) => {
 
 // Delete Product (Merchant or SaaS Admin Only)
 app.delete("/products/:id", async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      { success: false, error: "Customer accounts cannot delete products." },
-      403
-    );
-  }
-
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
-  if (!product) {
-    return c.json({ success: false, error: "Product not found" }, 404);
-  }
+  const guard = await requireManagedProduct(c, id);
+  if ("error" in guard) return guard.error;
 
   // Delete assets from Supabase storage
   await storageService.deleteProductAssets(id);
@@ -501,19 +541,10 @@ app.delete("/products/:id", async (c) => {
 // Start Generation (Meshy AI Multi-Image) - Merchant or SaaS Admin Only
 app.post("/products/:id/generate", async (c) => {
   if (!(await featureFlags.isEnabled("model_generation"))) return featureOffResponse(c);
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      { success: false, error: "Customer accounts cannot trigger 3D model generation." },
-      403
-    );
-  }
-
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
-  if (!product) {
-    return c.json({ success: false, error: "Product not found" }, 404);
-  }
+  const guard = await requireManagedProduct(c, id);
+  if ("error" in guard) return guard.error;
+  const { product } = guard;
 
   const isSingleImage =
     product.generationMode === "image_to_3d" || product.images.length === 1;
@@ -800,19 +831,10 @@ app.get("/products/:id/status", async (c) => {
 // Retry Generation (Merchant or SaaS Admin Only)
 app.post("/products/:id/retry", async (c) => {
   if (!(await featureFlags.isEnabled("model_generation"))) return featureOffResponse(c);
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      { success: false, error: "Customer accounts cannot retry or trigger 3D generation." },
-      403
-    );
-  }
-
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
-  if (!product) {
-    return c.json({ success: false, error: "Product not found" }, 404);
-  }
+  const guard = await requireManagedProduct(c, id);
+  if ("error" in guard) return guard.error;
+  const { product } = guard;
 
   const isSingleImage =
     product.generationMode === "image_to_3d" || product.images.length === 1;
@@ -896,19 +918,10 @@ app.post("/products/:id/retry", async (c) => {
 
 // Cancel 3D Generation Task (Merchant or SaaS Admin)
 app.post("/products/:id/cancel", async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      { success: false, error: "Customer accounts cannot cancel 3D generation." },
-      403
-    );
-  }
-
   const id = c.req.param("id");
-  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
-  if (!product) {
-    return c.json({ success: false, error: "Product not found" }, 404);
-  }
+  const guard = await requireManagedProduct(c, id);
+  if ("error" in guard) return guard.error;
+  const { product } = guard;
 
   if (product.status === "completed") {
     return c.json(
@@ -972,49 +985,30 @@ app.post("/products/:id/cancel", async (c) => {
 // Proxy 3D Model file to prevent CORS blocking from external CDNs (e.g. assets.meshy.ai)
 app.get("/proxy-model", async (c) => {
   const url = c.req.query("url");
-  if (!url) {
-    return c.text("Missing url query param", 400);
+  if (!url || !isAllowedModelUrl(url)) {
+    return c.text("Model URL is missing or not from an allowed host", 400);
   }
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { redirect: "error" });
     if (!res.ok) {
-      // If external signed CDN URL has expired (403 Forbidden / 404 Not Found),
-      // gracefully serve the default 3D model instead of crashing the client viewer with 403
-      if ((res.status === 403 || res.status === 404 || res.status === 410) && url.includes("assets.meshy.ai")) {
-        console.warn(`[Proxy Model] Meshy signed URL expired (${res.status}): ${url}. Serving local fallback model.`);
-        try {
-          const fs = await import("fs/promises");
-          const path = await import("path");
-          const fallbackPath = path.join(process.cwd(), "public", "models", "default-model.glb");
-          const buffer = await fs.readFile(fallbackPath);
-          return new Response(buffer, {
-            status: 200,
-            headers: {
-              "Content-Type": "model/gltf-binary",
-              "Access-Control-Allow-Origin": "*",
-              "Cache-Control": "public, max-age=86400",
-              "X-Fallback-Model": "true",
-            },
-          });
-        } catch (fsErr) {
-          console.error("Failed to load local fallback GLB:", fsErr);
-        }
-      }
-
       return c.text(
         `Failed to fetch 3D model: ${res.statusText}`,
-        (res.status >= 400 && res.status < 600 ? res.status : 500) as 400 | 404 | 500
+        (res.status >= 400 && res.status < 600 ? res.status : 502) as 400
       );
     }
-    const contentType = res.headers.get("content-type") || "model/gltf-binary";
-    const arrayBuffer = await res.arrayBuffer();
+    if (Number(res.headers.get("content-length") || 0) > MAX_PROXY_BYTES) {
+      return c.text("3D model is too large to proxy", 413);
+    }
+    const body = await readBodyWithLimit(res, MAX_PROXY_BYTES);
+    if (!body) {
+      return c.text("3D model is too large to proxy", 413);
+    }
 
-    return new Response(arrayBuffer, {
+    return new Response(body, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
+        "Content-Type": res.headers.get("content-type") || "model/gltf-binary",
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
       },
     });
@@ -1025,16 +1019,13 @@ app.get("/proxy-model", async (c) => {
 
 // Credits & Usage Analytics (Merchant or SaaS Admin Only)
 app.get("/credits/usage", async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (currentUser && currentUser.role === "customer") {
-    return c.json(
-      { success: false, error: "Credits and usage analytics are reserved for Merchants and SaaS Admins." },
-      403
-    );
-  }
+  const staff = await requireStaff(c);
+  if ("error" in staff) return staff.error;
 
   const dbProducts = await supabaseDb.getAllProducts();
-  const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
+  const allProducts = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
+  const products =
+    staff.user.role === "saas_admin" ? allProducts : allProducts.filter((p) => p.merchantId === staff.user.id);
   const allAttempts = products.flatMap((p) => p.generationAttempts);
 
   const totalAttempts = allAttempts.length;
@@ -1081,13 +1072,13 @@ app.get("/admin/settings", async (c) => {
   }
 
   const settings = await supabaseDb.getSystemSettings();
-  return c.json({ success: true, data: settings });
+  return c.json({ success: true, data: { ...settings, meshyApiKey: maskSecret(settings.meshyApiKey) } });
 });
 
 // 2. Update System Settings (Admin only)
 const updateSystemSettingsSchema = z.object({
   meshyApiKey: z.string().optional(),
-  meshyApiBaseUrl: z.string().optional(),
+  meshyApiBaseUrl: z.string().refine(isAllowedMeshyBaseUrl, "Meshy base URL must be an https meshy.ai address").optional(),
   meshyModel: z.string().optional(),
   meshyGeometryResolution: z.string().optional(),
   meshyTextureResolution: z.string().optional(),
@@ -1102,13 +1093,14 @@ app.patch("/admin/settings", zValidator("json", updateSystemSettingsSchema), asy
     return c.json({ success: false, error: "Access denied. SaaS Admin role required." }, 403);
   }
 
-  const body = c.req.valid("json");
-  const res = await supabaseDb.updateSystemSettings(body);
+  const { meshyApiKey, ...rest } = c.req.valid("json");
+  const updates = meshyApiKey === undefined || meshyApiKey.startsWith(MASK_PREFIX) ? rest : { ...rest, meshyApiKey };
+  const res = await supabaseDb.updateSystemSettings(updates);
   if (res.success && res.data) {
     meshyClient.updateConfig(res.data.meshyApiKey, res.data.meshyApiBaseUrl);
   }
 
-  return c.json(res);
+  return c.json(res.success && res.data ? { ...res, data: { ...res.data, meshyApiKey: maskSecret(res.data.meshyApiKey) } } : res);
 });
 
 // ---------------------------------------------------------------------------
@@ -1130,8 +1122,10 @@ app.get("/merchants/:id/public", async (c) => {
 // 2. Get Current Merchant Profile (For Settings Page)
 app.get("/merchants/profile", async (c) => {
   const currentUser = await getCurrentUser(c);
-  const targetId = currentUser?.id || "demo-merchant-001";
-  const profile = await supabaseDb.getMerchantPublicProfile(targetId);
+  if (!currentUser) {
+    return c.json({ success: false, error: "Sign in required." }, 401);
+  }
+  const profile = await supabaseDb.getMerchantPublicProfile(currentUser.id);
 
   if (!profile) {
     return c.json({ success: false, error: "Merchant profile not found" }, 404);
@@ -1140,7 +1134,7 @@ app.get("/merchants/profile", async (c) => {
   return c.json({ success: true, data: profile });
 });
 
-// 3. Update Merchant Profile (Merchant, Admin, or Demo Merchant)
+// 3. Update Merchant Profile (Merchant or Admin)
 const updateMerchantSchema = z.object({
   businessName: z.string().max(100).optional(),
   bio: z.string().max(500).optional(),
@@ -1151,12 +1145,11 @@ const updateMerchantSchema = z.object({
 });
 
 app.patch("/merchants/profile", zValidator("json", updateMerchantSchema), async (c) => {
-  const currentUser = await getCurrentUser(c);
-  // Demo merchant account can edit without active session cookie; otherwise use logged-in user id
-  const targetId = currentUser?.id || "demo-merchant-001";
+  const staff = await requireStaff(c);
+  if ("error" in staff) return staff.error;
 
   const body = c.req.valid("json");
-  const res = await supabaseDb.updateMerchantProfile(targetId, body);
+  const res = await supabaseDb.updateMerchantProfile(staff.user.id, body);
   if (!res.success) {
     return c.json({ success: false, error: "Failed to update merchant profile in database" }, 500);
   }

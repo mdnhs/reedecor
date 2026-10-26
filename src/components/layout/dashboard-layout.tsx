@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Box,
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import type { UserRole } from "@/lib/supabase/auth-service";
 import { useFeature } from "@/lib/features/features-context";
+import { isPublicPath } from "@/lib/auth/route-guard";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -100,7 +101,8 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { user, role, isSaasAdmin, isCustomer, logout, switchDemoRole } = useAuth();
+  const router = useRouter();
+  const { user, role, isLoading, isSaasAdmin, isCustomer, demoMode, logout, switchDemoRole } = useAuth();
   const generationOn = useFeature("model_generation");
 
   const merchantStoreId = user?.id || "demo-merchant-001";
@@ -134,6 +136,12 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
     .filter((group) => group.items.length > 0);
 
   const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : "U";
+
+  useEffect(() => {
+    if (!isLoading && !user && !isPublicPath(pathname || "/")) {
+      router.replace(`/login?next=${encodeURIComponent(pathname || "/")}`);
+    }
+  }, [isLoading, user, router, pathname]);
 
   return (
     <div className="h-screen w-full flex gap-3 p-2 sm:p-3 text-stone-900 antialiased font-sans overflow-hidden">
@@ -305,6 +313,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            {demoMode && (
             <div className="hidden sm:flex items-center gap-0.5 rounded-full bg-white/70 p-1 text-xs font-medium">
               {ROLE_OPTIONS.map((option) => (
                 <button
@@ -321,6 +330,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
                 </button>
               ))}
             </div>
+            )}
 
             {isSaasAdmin ? (
               <Link

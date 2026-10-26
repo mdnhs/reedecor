@@ -71,7 +71,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
 
 export default function CreateProductPage() {
   const router = useRouter();
-  const { isCustomer, switchDemoRole } = useAuth();
+  const { isCustomer, demoMode, switchDemoRole } = useAuth();
   const generationOn = useFeature("model_generation");
 
   // Form State
@@ -298,6 +298,7 @@ export default function CreateProductPage() {
             </p>
           </div>
           <div className="pt-2 flex items-center justify-center gap-3">
+            {demoMode && (
             <Button
               onClick={() => switchDemoRole("merchant")}
               className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
@@ -305,6 +306,7 @@ export default function CreateProductPage() {
               <Store className="h-4 w-4" />
               <span>Switch to Merchant Account</span>
             </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => router.push("/products")}

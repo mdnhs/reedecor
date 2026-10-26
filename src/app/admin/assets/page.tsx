@@ -21,7 +21,7 @@ interface AdminUserRow {
 }
 
 export default function AdminAssetsPage() {
-  const { user, isSaasAdmin, switchDemoRole } = useAuth();
+  const { user, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
   const [assets, setAssets] = useState<RoomAsset[]>([]);
   const [categories, setCategories] = useState<AssetCategory[]>([]);
   const [merchants, setMerchants] = useState<MerchantOption[]>([]);
@@ -95,9 +95,11 @@ export default function AdminAssetsPage() {
               You are signed in as <strong>{user?.name || "User"}</strong>. Only SaaS Administrators can manage room assets.
             </p>
           </div>
-          <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
-            Switch to SaaS Admin Account
-          </Button>
+          {demoMode && (
+            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
+              Switch to SaaS Admin Account
+            </Button>
+          )}
         </Card>
       </DashboardLayout>
     );

@@ -117,8 +117,9 @@ function ViewerContent({ id }: { id: string }) {
     loadProduct();
   }, [id]);
 
-  const canEditScene =
-    sceneEditorOn && !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
+  const canManage =
+    !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
+  const canEditScene = sceneEditorOn && canManage;
 
   const sceneEnabled = product?.status === "completed";
 
@@ -408,11 +409,11 @@ function ViewerContent({ id }: { id: string }) {
                   heightMm={product.heightMm}
                   captureName={product.name}
                   onFirstFrame={
-                    product.thumbnailUrl || !captureOn
+                    product.thumbnailUrl || !captureOn || !canManage
                       ? undefined
                       : (image) => void saveThumbnail(image).catch(() => {})
                   }
-                  onUseAsThumbnail={isCustomer || !captureOn ? undefined : saveThumbnail}
+                  onUseAsThumbnail={!canManage || !captureOn ? undefined : saveThumbnail}
                   showCapture={captureOn}
                   showBackdropMenu={backdropOn}
                   initialBackdrop={scene?.backdrop}

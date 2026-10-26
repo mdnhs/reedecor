@@ -2,6 +2,7 @@ import { getSupabaseClient } from "./db";
 import { hashPassword, verifyPassword } from "../auth/password";
 import crypto from "node:crypto";
 import { normalizePlan } from "../assets/access";
+import { isDemoMode } from "@/server/access";
 import type { MerchantPlan } from "../assets/types";
 
 export type UserRole = "saas_admin" | "merchant" | "customer";
@@ -51,7 +52,7 @@ export class AuthService {
    * Seed the 3 default users (SaaS Admin, Merchant, Customer) if not already in Supabase
    */
   async ensureSeedUsers(): Promise<void> {
-    if (!this.client) return;
+    if (!this.client || !isDemoMode()) return;
 
     const seedUsers = [
       {

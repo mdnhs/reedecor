@@ -9,7 +9,6 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   status: UserStatus;
-  isGuestFallback?: boolean;
 }
 
 interface AuthContextType {
@@ -19,6 +18,7 @@ interface AuthContextType {
   isSaasAdmin: boolean;
   isMerchant: boolean;
   isCustomer: boolean;
+  demoMode: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (
     name: string,
@@ -27,7 +27,7 @@ interface AuthContextType {
     role: UserRole
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  switchDemoRole: (role: UserRole) => Promise<void>;
+  switchDemoRole: (role: UserRole) => Promise<boolean>;
   refreshUser: () => Promise<void>;
 }
 
@@ -36,11 +36,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
 
   const fetchCurrentUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
       const json = await res.json();
+      setDemoMode(!!json.data?.demoMode);
       if (json.success && json.data) {
         setUser(json.data);
       } else {
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/auth/me");
         const json = await res.json();
         if (!isCancelled) {
+          setDemoMode(!!json.data?.demoMode);
           if (json.success && json.data) {
             setUser(json.data);
           } else {
@@ -140,15 +143,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json();
       if (json.success && json.data) {
         setUser(json.data);
+        return true;
       }
+      return false;
     } catch (err) {
       console.error("Failed to switch demo role:", err);
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const currentRole: UserRole = user?.role || "merchant";
+  const currentRole: UserRole = user?.role || "customer";
   const isSaasAdmin = currentRole === "saas_admin";
   const isMerchant = currentRole === "merchant";
   const isCustomer = currentRole === "customer";
@@ -162,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isSaasAdmin,
         isMerchant,
         isCustomer,
+        demoMode,
         login,
         register,
         logout,

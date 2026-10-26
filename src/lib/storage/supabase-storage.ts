@@ -1,24 +1,17 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { resolveSupabaseConfig } from "@/lib/supabase/config";
 import { StorageProvider, StorageUploadResult } from "./types";
 import { assetObjectPath } from "../assets/paths";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://aafouqxsgibfqjcxozii.supabase.co";
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
 
 export const BUCKET_NAME = process.env.SUPABASE_STORAGE_BUCKET || "furniture-3d-studio";
 
 let serverClient: SupabaseClient | null = null;
 
 export function getSupabaseServerClient(): SupabaseClient | null {
-  if (!supabaseKey) {
-    return null;
-  }
+  const config = resolveSupabaseConfig();
+  if (!config) return null;
   if (!serverClient) {
-    serverClient = createClient(supabaseUrl, supabaseKey, {
+    serverClient = createClient(config.url, config.key, {
       auth: { persistSession: false },
     });
   }

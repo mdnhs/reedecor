@@ -21,7 +21,7 @@ interface FeatureEntry extends FeatureDefinition {
 const GROUP_ORDER: FeatureGroup[] = ["Models", "Room studio", "Viewer", "Shopping"];
 
 export default function AdminFeaturesPage() {
-  const { user, isSaasAdmin, switchDemoRole } = useAuth();
+  const { user, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
   const { refresh } = useFeatures();
   const [features, setFeatures] = useState<FeatureEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,9 +86,11 @@ export default function AdminFeaturesPage() {
               You are signed in as <strong>{user?.name || "User"}</strong>. Only SaaS Administrators can switch features on or off.
             </p>
           </div>
-          <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
-            Switch to SaaS Admin Account
-          </Button>
+          {demoMode && (
+            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
+              Switch to SaaS Admin Account
+            </Button>
+          )}
         </Card>
       </DashboardLayout>
     );

@@ -1,24 +1,31 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { resolveSupabaseConfig } from "./config";
 import { StoredProduct, initialProducts } from "@/server/demo-store";
-
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://aafouqxsgibfqjcxozii.supabase.co";
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
 
 let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient | null {
-  if (!supabaseKey) return null;
+  const config = resolveSupabaseConfig();
+  if (!config) return null;
   if (!supabaseClient) {
-    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+    supabaseClient = createClient(config.url, config.key, {
       auth: { persistSession: false },
     });
   }
   return supabaseClient;
+}
+
+const MERCHANT_USER_COLUMNS = "id, name, email, role, business_name, bio, whatsapp_number, location";
+
+export interface MerchantUserRow {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  business_name: string | null;
+  bio: string | null;
+  whatsapp_number: string | null;
+  location: string | null;
 }
 
 export class SupabaseDbService {
@@ -271,6 +278,20 @@ export class SupabaseDbService {
   }
 
   // --- Merchant Public Profile & Followers ---
+  async findMerchantUser(identifier: string): Promise<MerchantUserRow | null> {
+    if (!this.client) return null;
+    for (const column of ["id", "email"] as const) {
+      const { data, error } = await this.client
+        .from("app_users")
+        .select(MERCHANT_USER_COLUMNS)
+        .eq(column, identifier)
+        .maybeSingle();
+      if (error) console.error(`Error querying app_users by ${column}:`, error);
+      if (data) return data as MerchantUserRow;
+    }
+    return null;
+  }
+
   async getMerchantPublicProfile(merchantIdentifier: string) {
     if (!this.client) {
       return {
@@ -286,17 +307,7 @@ export class SupabaseDbService {
     }
 
     try {
-      // Find merchant user by id or email or fallback to demo
-      const queryResult = await this.client
-        .from("app_users")
-        .select("id, name, email, role, business_name, bio, whatsapp_number, location")
-        .or(`id.eq.${merchantIdentifier},email.eq.${merchantIdentifier}`)
-        .maybeSingle();
-
-      let user = queryResult.data;
-      if (queryResult.error) {
-        console.error("Error querying app_users for merchant:", queryResult.error);
-      }
+      let user = await this.findMerchantUser(merchantIdentifier);
 
       // If querying demo-merchant-001 and not found, check user-merchant (or vice versa)
       if (!user && (merchantIdentifier === "demo-merchant-001" || merchantIdentifier === "user-merchant")) {

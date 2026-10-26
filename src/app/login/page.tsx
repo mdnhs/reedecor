@@ -8,16 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ShieldCheck, Store, ShoppingBag, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { safeNextPath } from "@/lib/auth/route-guard";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, register, switchDemoRole } = useAuth();
+  const { login, register, switchDemoRole, demoMode } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"saas_admin" | "merchant" | "customer">("merchant");
+  const [selectedRole, setSelectedRole] = useState<"merchant" | "customer">("merchant");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -29,14 +30,14 @@ export default function LoginPage() {
     if (mode === "login") {
       const res = await login(email, password);
       if (res.success) {
-        router.push("/");
+        router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       } else {
         setErrorMsg(res.error || "Login failed");
       }
     } else {
       const res = await register(name, email, password, selectedRole);
       if (res.success) {
-        router.push("/");
+        router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       } else {
         setErrorMsg(res.error || "Registration failed");
       }
@@ -46,8 +47,13 @@ export default function LoginPage() {
 
   const handleQuickDemo = async (role: "saas_admin" | "merchant" | "customer") => {
     setLoading(true);
-    await switchDemoRole(role);
+    setErrorMsg(null);
+    const switched = await switchDemoRole(role);
     setLoading(false);
+    if (!switched) {
+      setErrorMsg("Could not switch to the demo account.");
+      return;
+    }
     if (role === "saas_admin") {
       router.push("/admin/rbac");
     } else {
@@ -73,7 +79,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Quick Demo Switcher Cards */}
+        {demoMode && (
         <Card className="border-amber-200/90 bg-amber-50/50 shadow-xs">
           <CardHeader className="pb-2 pt-4 px-4">
             <div className="flex items-center justify-between">
@@ -144,6 +150,7 @@ export default function LoginPage() {
             </button>
           </CardContent>
         </Card>
+        )}
 
         {/* Regular Login / Register Form */}
         <Card className="border-stone-200/90 bg-white shadow-sm">
@@ -231,13 +238,12 @@ export default function LoginPage() {
                   <select
                     value={selectedRole}
                     onChange={(e) =>
-                      setSelectedRole(e.target.value as "saas_admin" | "merchant" | "customer")
+                      setSelectedRole(e.target.value as "merchant" | "customer")
                     }
                     className="w-full px-3 py-2 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-2 focus:ring-stone-900 bg-stone-50/50"
                   >
                     <option value="merchant">Merchant (Create & Manage 3D Models)</option>
                     <option value="customer">Customer (View 3D Catalog Only)</option>
-                    <option value="saas_admin">SaaS Admin (RBAC Control)</option>
                   </select>
                 </div>
               )}

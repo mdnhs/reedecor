@@ -1,22 +1,24 @@
 import crypto from "node:crypto";
 
-/**
- * Hash a password using PBKDF2 with SHA-512 and a random 16-byte salt
- */
-export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+const ITERATIONS = 210000;
+const LEGACY_ITERATIONS = 1000;
+
+function derive(password: string, salt: string, iterations: number): string {
+  return crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
 }
 
-/**
- * Verify a plain text password against a stored PBKDF2 salt:hash
- */
-export function verifyPassword(password: string, combinedHash: string): boolean {
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return `pbkdf2$${ITERATIONS}$${salt}$${derive(password, salt, ITERATIONS)}`;
+}
+
+// Accepts the current "pbkdf2$iterations$salt$hash" format and legacy "salt:hash" records
+export function verifyPassword(password: string, stored: string): boolean {
   try {
-    const [salt, key] = combinedHash.split(":");
-    if (!salt || !key) return false;
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+    const parts = stored.startsWith("pbkdf2$") ? stored.split("$").slice(1) : [String(LEGACY_ITERATIONS), ...stored.split(":")];
+    const [iterations, salt, key] = parts;
+    if (!salt || !key || !Number(iterations)) return false;
+    const hash = derive(password, salt, Number(iterations));
     return crypto.timingSafeEqual(Buffer.from(key, "hex"), Buffer.from(hash, "hex"));
   } catch {
     return false;

@@ -39,7 +39,7 @@ interface UsageData {
 }
 
 export default function CreditsPage() {
-  const { isCustomer, switchDemoRole } = useAuth();
+  const { isCustomer, demoMode, switchDemoRole } = useAuth();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,6 +87,7 @@ export default function CreditsPage() {
             </p>
           </div>
           <div className="pt-2">
+            {demoMode && (
             <Button
               onClick={() => switchDemoRole("merchant")}
               className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
@@ -94,6 +95,7 @@ export default function CreditsPage() {
               <Store className="h-4 w-4" />
               <span>Switch to Merchant Account</span>
             </Button>
+            )}
           </div>
         </Card>
       </DashboardLayout>

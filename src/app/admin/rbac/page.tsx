@@ -35,7 +35,7 @@ interface AdminUser {
 }
 
 export default function AdminRbacPage() {
-  const { user: currentUser, isSaasAdmin, switchDemoRole } = useAuth();
+  const { user: currentUser, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -177,7 +177,7 @@ export default function AdminRbacPage() {
     e.preventDefault();
     setCreatingUser(true);
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -232,6 +232,7 @@ export default function AdminRbacPage() {
             </p>
           </div>
 
+          {demoMode && (
           <div className="pt-2">
             <Button
               onClick={() => switchDemoRole("saas_admin")}
@@ -241,6 +242,7 @@ export default function AdminRbacPage() {
               <span>Switch to SaaS Admin Account</span>
             </Button>
           </div>
+          )}
         </Card>
       </DashboardLayout>
     );
