@@ -78,7 +78,7 @@ export default function CreateProductPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Chair");
   const [description, setDescription] = useState("");
-  const [priceBdt, setPriceBdt] = useState("32500");
+  const [priceBdt, setPriceBdt] = useState("");
   const [dimensionUnit, setDimensionUnit] = useState<"cm" | "mm">("cm");
   const [width, setWidth] = useState("85");
   const [depth, setDepth] = useState("75");
@@ -224,7 +224,7 @@ export default function CreateProductPage() {
           widthMm,
           depthMm,
           heightMm,
-          priceBdt: Math.max(1, parseFloat(priceBdt) || 18500),
+          priceBdt: parseFloat(priceBdt) > 0 ? parseFloat(priceBdt) : undefined,
           generationMode,
           images: imagesPayload,
         }),

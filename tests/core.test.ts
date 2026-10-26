@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatDimension, formatCurrencyBDT } from "../src/lib/utils";
-import { cleanWhatsAppNumber, buildProductWhatsAppUrl } from "../src/lib/whatsapp";
+import { cleanWhatsAppNumber, buildProductWhatsAppUrl, buildProductShareUrl } from "../src/lib/whatsapp";
 import { z } from "zod";
 
 describe("Product Dimension Normalization", () => {
@@ -177,3 +177,18 @@ describe("3D Model GLB Optimization Pipeline", () => {
 });
 
 
+
+describe("WhatsApp links without a merchant number", () => {
+  it("returns null instead of messaging a hard-coded number", () => {
+    expect(buildProductWhatsAppUrl(null, { name: "Chair" })).toBeNull();
+    expect(buildProductWhatsAppUrl("", { name: "Chair" })).toBeNull();
+  });
+});
+
+describe("WhatsApp share links", () => {
+  it("lets the sender pick a contact instead of messaging a fixed number", () => {
+    const url = buildProductShareUrl({ name: "Oak Chair", priceBdt: 5000 });
+    expect(url.startsWith("https://wa.me/?text=")).toBe(true);
+    expect(decodeURIComponent(url)).toContain("Oak Chair");
+  });
+});

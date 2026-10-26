@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/auth-service", () => ({ authService: mocks.authService }));
-vi.mock("@/lib/supabase/db", () => ({ supabaseDb: mocks.supabaseDb, getSupabaseClient: () => null }));
+vi.mock("@/lib/supabase/db", () => ({ supabaseDb: { ...mocks.supabaseDb, isConfigured: () => true }, getSupabaseClient: () => null }));
 vi.mock("@/lib/storage/supabase-storage", () => ({ storageService: mocks.storageService }));
 vi.mock("@/lib/meshy/client", () => ({ meshyClient: { updateConfig: vi.fn() } }));
 vi.mock("@/lib/supabase/assets-db", () => ({ assetsDb: {} }));
@@ -44,7 +44,7 @@ vi.mock("@/server/feature-service", () => ({
 }));
 vi.mock("@/server/demo-store", () => ({
   inMemoryStore: {
-    getAll: () => [],
+    getAll: () => [{ id: "demo", merchantId: "demo", status: "completed" }],
     getById: () => undefined,
     add: vi.fn(),
     delete: vi.fn(),
@@ -346,5 +346,20 @@ describe("model proxy hardening", () => {
     expect(res.status).toBe(413);
     expect(sent).toBeLessThanOrEqual(72 * 1024 * 1024);
     fetchSpy.mockRestore();
+  });
+});
+
+describe("data layer failures", () => {
+  it("returns a JSON 500 when the database rejects a delete", async () => {
+    mocks.supabaseDb.deleteProduct.mockRejectedValueOnce(new Error("db down"));
+    const res = await req("/api/products/p-owner", "owner-token", { method: "DELETE" });
+    expect(res.status).toBe(500);
+    expect((await res.json()).success).toBe(false);
+  });
+
+  it("does not show in-memory demo products when the database is empty", async () => {
+    mocks.supabaseDb.getAllProducts.mockResolvedValueOnce([]);
+    const json = await (await req("/api/products", "admin-token")).json();
+    expect(json.data).toEqual([]);
   });
 });

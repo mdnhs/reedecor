@@ -24,6 +24,11 @@ import {
 
 export const app = new Hono().basePath("/api");
 
+app.onError((err, c) => {
+  console.error("[API] Unhandled error:", err);
+  return c.json({ success: false, error: err.message || "Unexpected server error" }, 500);
+});
+
 // ---------------------------------------------------------------------------
 // Auth Helper & Middlewares
 // ---------------------------------------------------------------------------
@@ -111,7 +116,7 @@ const createProductSchema = z
     widthMm: z.number().positive("Width must be positive"),
     depthMm: z.number().positive("Depth must be positive"),
     heightMm: z.number().positive("Height must be positive"),
-    priceBdt: z.number().positive("Price must be positive").default(18500),
+    priceBdt: z.number().nonnegative("Price cannot be negative").optional(),
     generationMode: z
       .enum(["image_to_3d", "multi_image_to_3d"])
       .default("multi_image_to_3d"),
@@ -429,7 +434,7 @@ app.get("/products", async (c) => {
   }
 
   const dbProducts = await supabaseDb.getAllProducts();
-  const products = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
+  const products = supabaseDb.isConfigured() ? dbProducts : inMemoryStore.getAll();
   const visible =
     currentUser.role === "saas_admin"
       ? products
@@ -469,7 +474,7 @@ app.post("/products", requireFeature("model_generation"), staffOnly, zValidator(
     widthMm: Math.round(body.widthMm),
     depthMm: Math.round(body.depthMm),
     heightMm: Math.round(body.heightMm),
-    priceBdt: Math.round(body.priceBdt || 18500),
+    priceBdt: Math.round(body.priceBdt ?? 0),
     generationMode: body.generationMode || (body.images.length === 1 ? "image_to_3d" : "multi_image_to_3d"),
     status: "draft",
     createdAt: new Date().toISOString(),
@@ -1023,7 +1028,7 @@ app.get("/credits/usage", async (c) => {
   if ("error" in staff) return staff.error;
 
   const dbProducts = await supabaseDb.getAllProducts();
-  const allProducts = dbProducts.length > 0 ? dbProducts : inMemoryStore.getAll();
+  const allProducts = supabaseDb.isConfigured() ? dbProducts : inMemoryStore.getAll();
   const products =
     staff.user.role === "saas_admin" ? allProducts : allProducts.filter((p) => p.merchantId === staff.user.id);
   const allAttempts = products.flatMap((p) => p.generationAttempts);
@@ -1125,7 +1130,7 @@ app.get("/merchants/profile", async (c) => {
   if (!currentUser) {
     return c.json({ success: false, error: "Sign in required." }, 401);
   }
-  const profile = await supabaseDb.getMerchantPublicProfile(currentUser.id);
+  const profile = await supabaseDb.getOwnMerchantProfile(currentUser.id);
 
   if (!profile) {
     return c.json({ success: false, error: "Merchant profile not found" }, 404);

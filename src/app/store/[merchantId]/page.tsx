@@ -10,38 +10,22 @@ import {
   CheckCircle2,
   Users,
   Box,
-  Eye,
   Sparkles,
   ArrowLeft,
   Check,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StoredProduct } from "@/server/demo-store";
+import type { PublicStore } from "@/lib/public-store";
 import { formatDimension } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { buildProductWhatsAppUrl, cleanWhatsAppNumber } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
-import { getProductThumbnail } from "@/lib/product-thumbnail";
 import { useFeature } from "@/lib/features/features-context";
-
-interface MerchantProfileData {
-  id: string;
-  name: string;
-  businessName: string;
-  bio: string;
-  whatsappNumber: string;
-  location: string;
-  email?: string;
-  avatarUrl?: string | null;
-  followerCount: number;
-  products: StoredProduct[];
-}
 
 export default function PublicStorefrontPage({
   params,
@@ -55,10 +39,10 @@ export default function PublicStorefrontPage({
   const wishlistOn = useFeature("wishlist");
   const whatsappOn = useFeature("whatsapp_contact");
   const origin = useOrigin();
-  const [profile, setProfile] = useState<MerchantProfileData | null>(null);
+  const [profile, setProfile] = useState<PublicStore | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [followerCount, setFollowerCount] = useState(128);
+  const [followerCount, setFollowerCount] = useState(0);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -74,7 +58,7 @@ export default function PublicStorefrontPage({
         const json = await res.json();
         if (!ignore && json.success && json.data) {
           setProfile(json.data);
-          setFollowerCount(json.data.followerCount || 128);
+          setFollowerCount(json.data.followerCount ?? 0);
         }
       } catch (err) {
         console.error("Failed to load merchant storefront:", err);
@@ -231,11 +215,13 @@ export default function PublicStorefrontPage({
     );
   }
 
-  const merchantGeneralWaUrl = `https://wa.me/${cleanWhatsAppNumber(
-    profile.whatsappNumber
-  )}?text=${encodeURIComponent(
-    `Assalamu Alaikum! I am visiting your 3D storefront "${profile.businessName}" and would like to inquire about your bespoke furniture collection.`
-  )}`;
+  const storeName = profile.businessName || profile.name || "Furniture Store";
+  const merchantGeneralWaUrl =
+    whatsappOn && profile.whatsappNumber
+      ? `https://wa.me/${cleanWhatsAppNumber(profile.whatsappNumber)}?text=${encodeURIComponent(
+          `Assalamu Alaikum! I am visiting your 3D storefront "${storeName}" and would like to inquire about your furniture collection.`
+        )}`
+      : null;
 
   return (
     <div className="min-h-screen bg-[#faf9f6] text-neutral-900 selection:bg-amber-100 selection:text-amber-900">
@@ -276,7 +262,7 @@ export default function PublicStorefrontPage({
               )}
             </Button>
 
-            {whatsappOn && (
+            {merchantGeneralWaUrl && (
               <a
                 href={merchantGeneralWaUrl}
                 target="_blank"
@@ -302,33 +288,31 @@ export default function PublicStorefrontPage({
             <div className="flex items-start sm:items-center gap-4 lg:gap-6">
               {/* Avatar */}
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-md border-2 border-white ring-2 ring-amber-100 shrink-0">
-                {profile.businessName.charAt(0) || "A"}
+                {storeName.charAt(0)}
               </div>
 
               {/* Bio & Details */}
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
-                    {profile.businessName}
+                    {storeName}
                   </h1>
-                  {profile.name && profile.name !== profile.businessName && (
+                  {profile.name && profile.name !== storeName && (
                     <span className="text-xs text-stone-500 font-medium">by {profile.name}</span>
                   )}
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    Verified Artisan Merchant
-                  </Badge>
                 </div>
 
-                <p className="text-sm text-neutral-600 max-w-2xl leading-relaxed">
-                  {profile.bio}
-                </p>
+                {profile.bio && (
+                  <p className="text-sm text-neutral-600 max-w-2xl leading-relaxed">{profile.bio}</p>
+                )}
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500 pt-1">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
-                    {profile.location || "Gulshan-2, Dhaka, Bangladesh"}
-                  </span>
+                  {profile.location && (
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                      {profile.location}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-neutral-600" />
                     <strong className="text-neutral-800">{followerCount.toLocaleString()}</strong>{" "}
@@ -368,7 +352,7 @@ export default function PublicStorefrontPage({
                 )}
               </Button>
 
-              {whatsappOn && (
+              {merchantGeneralWaUrl && (
                 <a
                   href={merchantGeneralWaUrl}
                   target="_blank"
@@ -439,30 +423,26 @@ export default function PublicStorefrontPage({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((prod) => {
-                const frontImg =
-                  getProductThumbnail(prod) ||
-                  "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&auto=format&fit=crop";
-
                 const isWishlisted = wishlistIds.has(prod.id);
-                const has3D =
-                  prod.status === "completed" ||
-                  prod.generationAttempts?.some((a) => a.status === "completed" && a.modelUrl);
 
                 // Specific WhatsApp Direct Order Link for this product
                 const currentUrl = origin
                   ? `${origin}/viewer/${prod.id}`
                   : `/viewer/${prod.id}`;
 
-                const productWaUrl = buildProductWhatsAppUrl(profile.whatsappNumber, {
+                const productWaUrl =
+                  whatsappOn && prod.priceBdt
+                    ? buildProductWhatsAppUrl(profile.whatsappNumber, {
                   id: prod.id,
                   name: prod.name,
                   category: prod.category,
-                  priceBdt: prod.priceBdt || 18500,
+                  priceBdt: prod.priceBdt,
                   widthMm: prod.widthMm,
                   depthMm: prod.depthMm,
                   heightMm: prod.heightMm,
                   storeUrl: currentUrl,
-                });
+                })
+                    : null;
 
                 return (
                   <Card
@@ -475,26 +455,26 @@ export default function PublicStorefrontPage({
                     >
                       {/* Image Frame */}
                       <div className="relative aspect-4/3 w-full bg-neutral-100 overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={frontImg}
-                          alt={prod.name}
-                          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                        />
+                        {prod.thumbnailUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={prod.thumbnailUrl}
+                            alt={prod.name}
+                            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-neutral-300">
+                            <Box className="h-10 w-10" />
+                          </div>
+                        )}
 
                         {/* Top Badges */}
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
-                          {has3D ? (
-                            <Badge className="bg-emerald-500/90 hover:bg-emerald-600 text-white border-0 text-[10px] tracking-wide font-medium shadow-xs gap-1 backdrop-blur-xs">
-                              <Sparkles className="w-3 h-3" />
-                              3D Ready
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-neutral-800/80 text-white border-0 text-[10px] tracking-wide font-medium backdrop-blur-xs">
-                              Draft Model
-                            </Badge>
-                          )}
-                          <Badge className="bg-white/90 text-neutral-800 border-neutral-200 text-[10px] font-medium backdrop-blur-xs">
+                          <Badge className="bg-amber-600/90 text-white border-0 text-xs tracking-wide font-medium shadow-xs gap-1 backdrop-blur-xs">
+                            <Sparkles className="w-3 h-3" />
+                            AI-generated 3D
+                          </Badge>
+                          <Badge className="bg-white/90 text-neutral-800 border-neutral-200 text-xs font-medium backdrop-blur-xs">
                             {prod.category}
                           </Badge>
                         </div>
@@ -548,14 +528,14 @@ export default function PublicStorefrontPage({
                         <div className="flex items-baseline justify-between pt-1">
                           <span className="text-xs text-neutral-500">Purchase Price</span>
                           <span className="text-lg font-bold text-neutral-900">
-                            ৳{(prod.priceBdt || 18500).toLocaleString("en-BD")}
+                            {prod.priceBdt ? `৳${prod.priceBdt.toLocaleString("en-BD")}` : "On request"}
                           </span>
                         </div>
                       </CardContent>
                     </Link>
 
                     {/* Action Footer */}
-                    {whatsappOn && (
+                    {productWaUrl && (
                       <div className="p-4 pt-0">
                         <a
                           href={productWaUrl}

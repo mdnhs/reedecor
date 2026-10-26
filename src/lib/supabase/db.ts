@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { resolveSupabaseConfig } from "./config";
-import { StoredProduct, initialProducts } from "@/server/demo-store";
+import { StoredProduct } from "@/server/demo-store";
+import { toPublicStore, type PublicStore } from "@/lib/public-store";
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -35,20 +36,22 @@ export class SupabaseDbService {
     this.client = getSupabaseClient();
   }
 
+  isConfigured(): boolean {
+    return this.client !== null;
+  }
+
   async getAllProducts(): Promise<StoredProduct[]> {
     if (!this.client) return [];
 
-    try {
-      const { data: productsData, error: prodErr } = await this.client
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false });
+    const { data: productsData, error: prodErr } = await this.client
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-      if (prodErr || !productsData || productsData.length === 0) {
-        // If empty, seed initial demo products into Supabase
-        await this.seedInitialProducts();
-        return initialProducts;
-      }
+    if (prodErr) throw new Error(prodErr.message);
+    if (!productsData || productsData.length === 0) return [];
+
+    {
 
       // Fetch related images and attempts
       const { data: imagesData } = await this.client.from("product_images").select("*");
@@ -66,7 +69,7 @@ export class SupabaseDbService {
         widthMm: p.width_mm,
         depthMm: p.depth_mm,
         heightMm: p.height_mm,
-        priceBdt: Number(p.price_bdt || 18500),
+        priceBdt: Number(p.price_bdt || 0),
         status: p.status,
         thumbnailUrl: p.thumbnail_url ?? null,
         createdAt: p.created_at,
@@ -97,9 +100,6 @@ export class SupabaseDbService {
             completedAt: att.completed_at,
           })),
       }));
-    } catch (err) {
-      console.error("Supabase getAllProducts error, falling back:", err);
-      return [];
     }
   }
 
@@ -135,7 +135,7 @@ export class SupabaseDbService {
         widthMm: p.width_mm,
         depthMm: p.depth_mm,
         heightMm: p.height_mm,
-        priceBdt: Number(p.price_bdt || 18500),
+        priceBdt: Number(p.price_bdt || 0),
         status: p.status,
         thumbnailUrl: p.thumbnail_url ?? null,
         createdAt: p.created_at,
@@ -171,7 +171,7 @@ export class SupabaseDbService {
   async createProduct(product: StoredProduct): Promise<void> {
     if (!this.client) return;
 
-    await this.client.from("products").insert({
+    const { error } = await this.client.from("products").insert({
       id: product.id,
       merchant_id: product.merchantId,
       name: product.name,
@@ -180,14 +180,15 @@ export class SupabaseDbService {
       width_mm: product.widthMm,
       depth_mm: product.depthMm,
       height_mm: product.heightMm,
-      price_bdt: product.priceBdt || 18500,
+      price_bdt: product.priceBdt,
       status: product.status,
       created_at: product.createdAt,
       updated_at: product.updatedAt,
     });
+    if (error) throw new Error(error.message);
 
     if (product.images.length > 0) {
-      await this.client.from("product_images").insert(
+      const { error: imageError } = await this.client.from("product_images").insert(
         product.images.map((img) => ({
           id: img.id,
           product_id: product.id,
@@ -200,20 +201,23 @@ export class SupabaseDbService {
           created_at: new Date().toISOString(),
         }))
       );
+      if (imageError) throw new Error(imageError.message);
     }
   }
 
   async deleteProduct(id: string): Promise<void> {
     if (!this.client) return;
-    await this.client.from("products").delete().eq("id", id);
+    const { error } = await this.client.from("products").delete().eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   async updateProductStatus(id: string, status: StoredProduct["status"]): Promise<void> {
     if (!this.client) return;
-    await this.client
+    const { error } = await this.client
       .from("products")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   async updateProductThumbnail(id: string, thumbnailUrl: string): Promise<void> {
@@ -243,9 +247,7 @@ export class SupabaseDbService {
       created_at: attempt.createdAt,
       completed_at: attempt.completedAt,
     });
-    if (error) {
-      console.error("Supabase addGenerationAttempt error:", error);
-    }
+    if (error) throw new Error(error.message);
   }
 
   async updateGenerationAttempt(
@@ -267,20 +269,9 @@ export class SupabaseDbService {
     }
   }
 
-  async seedInitialProducts(): Promise<void> {
-    if (!this.client) return;
-    for (const prod of initialProducts) {
-      await this.createProduct(prod);
-      for (const att of prod.generationAttempts) {
-        await this.addGenerationAttempt(prod.id, att);
-      }
-    }
-  }
-
-  // --- Merchant Public Profile & Followers ---
-  async findMerchantUser(identifier: string): Promise<MerchantUserRow | null> {
+  async findMerchantUser(identifier: string, { byEmail = true } = {}): Promise<MerchantUserRow | null> {
     if (!this.client) return null;
-    for (const column of ["id", "email"] as const) {
+    for (const column of byEmail ? (["id", "email"] as const) : (["id"] as const)) {
       const { data, error } = await this.client
         .from("app_users")
         .select(MERCHANT_USER_COLUMNS)
@@ -292,77 +283,26 @@ export class SupabaseDbService {
     return null;
   }
 
-  async getMerchantPublicProfile(merchantIdentifier: string) {
-    if (!this.client) {
-      return {
-        id: "demo-merchant-001",
-        name: "Artisan Woodworks Dhaka",
-        businessName: "Artisan Woodworks Studio",
-        bio: "Bespoke handcrafted Scandinavian & modern teak/oak furniture crafted in Dhaka. Custom dimensions available.",
-        whatsappNumber: "01865818044",
-        location: "Gulshan-2, Dhaka, Bangladesh",
-        followerCount: 142,
-        products: initialProducts,
-      };
-    }
+  async countFollowers(merchantId: string): Promise<number> {
+    if (!this.client) return 0;
+    const { count } = await this.client
+      .from("merchant_followers")
+      .select("id", { count: "exact", head: true })
+      .eq("merchant_id", merchantId);
+    return count || 0;
+  }
 
-    try {
-      let user = await this.findMerchantUser(merchantIdentifier);
+  async getMerchantPublicProfile(merchantIdentifier: string): Promise<PublicStore | null> {
+    const user = await this.findMerchantUser(merchantIdentifier, { byEmail: false });
+    if (!user || user.role === "customer") return null;
+    const [followers, products] = await Promise.all([this.countFollowers(user.id), this.getAllProducts()]);
+    return toPublicStore(user, products, followers);
+  }
 
-      // If querying demo-merchant-001 and not found, check user-merchant (or vice versa)
-      if (!user && (merchantIdentifier === "demo-merchant-001" || merchantIdentifier === "user-merchant")) {
-        const altId = merchantIdentifier === "demo-merchant-001" ? "user-merchant" : "demo-merchant-001";
-        const { data: altUser } = await this.client
-          .from("app_users")
-          .select("id, name, email, role, business_name, bio, whatsapp_number, location")
-          .eq("id", altId)
-          .maybeSingle();
-        if (altUser) user = altUser;
-      }
-
-      const merchantUser = user || {
-        id: merchantIdentifier,
-        name: "Artisan Living Studio",
-        email: "merchant@artisanstudio.com",
-        role: "merchant",
-        business_name: "Artisan Living Dhaka",
-        bio: "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
-        whatsapp_number: "01865818044",
-        location: "Gulshan-2, Dhaka",
-      };
-
-      // Count followers
-      const { count } = await this.client
-        .from("merchant_followers")
-        .select("id", { count: "exact", head: true })
-        .eq("merchant_id", merchantUser.id);
-
-      // Get all products (or products for this merchant)
-      const allProducts = await this.getAllProducts();
-      const merchantProducts = allProducts.filter(
-        (p) =>
-          p.merchantId === merchantUser.id ||
-          p.merchantId === "demo-merchant-001" ||
-          p.merchantId === "user-merchant" ||
-          merchantUser.role === "saas_admin"
-      );
-
-      return {
-        id: merchantUser.id,
-        name: merchantUser.name || "Artisan Living Studio",
-        businessName: merchantUser.business_name || "Artisan Living Dhaka",
-        bio: merchantUser.bio || "Luxury architectural handcrafted 3D custom furniture. Made to order with premium hardwoods.",
-        whatsappNumber: merchantUser.whatsapp_number || "01865818044",
-        location: merchantUser.location || "Gulshan-2, Dhaka",
-        email: merchantUser.email || "merchant@artisanstudio.com",
-        avatarUrl: null,
-        followerCount: (count || 0) + 128, // base community count
-        products: merchantProducts.length > 0 ? merchantProducts : allProducts,
-      };
-    } catch (err) {
-      console.error("Error fetching merchant public profile:", err);
-      return null;
-    }
+  async getOwnMerchantProfile(userId: string): Promise<(PublicStore & { email: string | null }) | null> {
+    const user = await this.findMerchantUser(userId);
+    if (!user) return null;
+    return { ...toPublicStore(user, [], await this.countFollowers(user.id)), email: user.email };
   }
 
   async updateMerchantProfile(
@@ -448,12 +388,7 @@ export class SupabaseDbService {
       .from("merchant_followers")
       .upsert({ merchant_id: merchantId, customer_id: customerId }, { onConflict: "merchant_id,customer_id" });
 
-    const { count } = await this.client
-      .from("merchant_followers")
-      .select("id", { count: "exact", head: true })
-      .eq("merchant_id", merchantId);
-
-    return { success: true, followerCount: (count || 0) + 128 };
+    return { success: true, followerCount: await this.countFollowers(merchantId) };
   }
 
   async unfollowMerchant(merchantId: string, customerId: string): Promise<{ success: boolean; followerCount?: number }> {
@@ -464,12 +399,7 @@ export class SupabaseDbService {
       .eq("merchant_id", merchantId)
       .eq("customer_id", customerId);
 
-    const { count } = await this.client
-      .from("merchant_followers")
-      .select("id", { count: "exact", head: true })
-      .eq("merchant_id", merchantId);
-
-    return { success: true, followerCount: (count || 0) + 128 };
+    return { success: true, followerCount: await this.countFollowers(merchantId) };
   }
 
   // --- Customer Wishlist ---

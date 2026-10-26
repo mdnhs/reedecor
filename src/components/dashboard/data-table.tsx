@@ -136,7 +136,7 @@ export function DataTable({ products }: DataTableProps) {
                     </td>
 
                     <td className="py-3 px-4 font-bold text-stone-900 font-mono">
-                      ৳{(product.priceBdt || 18500).toLocaleString("en-BD")}
+                      {product.priceBdt > 0 ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "Price not set"}
                     </td>
 
                     <td className="py-3 px-4">

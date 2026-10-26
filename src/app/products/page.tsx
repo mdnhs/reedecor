@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension, cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
-import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
+import { buildProductShareUrl } from "@/lib/whatsapp";
 import { useOrigin } from "@/lib/hooks/use-origin";
 import { getProductThumbnail } from "@/lib/product-thumbnail";
 import { useFeature } from "@/lib/features/features-context";
@@ -266,17 +266,17 @@ export default function MyProductsPage() {
               const frontImage = getProductThumbnail(product);
 
               const isWishlisted = wishlistIds.has(product.id);
-              const price = product.priceBdt || 18500;
+              const price = product.priceBdt > 0 ? product.priceBdt : null;
 
               const currentUrl = origin
                 ? `${origin}/viewer/${product.id}`
                 : `/viewer/${product.id}`;
 
-              const waUrl = buildProductWhatsAppUrl("01865818044", {
+              const waUrl = buildProductShareUrl({
                 id: product.id,
                 name: product.name,
                 category: product.category,
-                priceBdt: price,
+                priceBdt: price ?? undefined,
                 widthMm: product.widthMm,
                 depthMm: product.depthMm,
                 heightMm: product.heightMm,
@@ -364,7 +364,7 @@ export default function MyProductsPage() {
                           {product.name}
                         </h3>
                         <span className="font-bold text-stone-900 text-sm shrink-0 font-mono">
-                          ৳{price.toLocaleString("en-BD")}
+                          {price ? `৳${price.toLocaleString("en-BD")}` : "Price not set"}
                         </span>
                       </div>
 
@@ -391,7 +391,7 @@ export default function MyProductsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
-                        title="Send WhatsApp message about this piece"
+                        title="Share this piece on WhatsApp"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />

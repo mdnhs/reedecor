@@ -24,11 +24,19 @@ export interface WhatsAppProductContext {
 }
 
 export function buildProductWhatsAppUrl(
-  rawNumber: string = "01865818044",
+  rawNumber: string | null,
   product: WhatsAppProductContext
-): string {
-  const cleanNumber = cleanWhatsAppNumber(rawNumber || "01865818044");
+): string | null {
+  const cleanNumber = rawNumber ? cleanWhatsAppNumber(rawNumber) : "";
+  if (!cleanNumber) return null;
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(productMessage(product))}`;
+}
 
+export function buildProductShareUrl(product: WhatsAppProductContext): string {
+  return `https://wa.me/?text=${encodeURIComponent(productMessage(product))}`;
+}
+
+function productMessage(product: WhatsAppProductContext): string {
   const priceText = product.priceBdt ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "Negotiable / On Request";
   const dimensionText =
     product.widthMm && product.depthMm && product.heightMm
@@ -55,6 +63,5 @@ export function buildProductWhatsAppUrl(
 
   lines.push(`\nIs this available for delivery or custom sizing? Please let me know the details.`);
 
-  const message = lines.join("\n");
-  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+  return lines.join("\n");
 }

@@ -58,3 +58,16 @@ describe("findMerchantUser", () => {
     expect(await supabaseDb.findMerchantUser("ghost")).toBeNull();
   });
 });
+
+describe("getMerchantPublicProfile", () => {
+  it("returns null for an unknown merchant instead of inventing a profile", async () => {
+    expect(await supabaseDb.getMerchantPublicProfile("ghost")).toBeNull();
+  });
+});
+
+describe("public storefront lookup", () => {
+  it("does not resolve a storefront by email address", async () => {
+    mocks.rows["email:shop@example.com"] = { id: "m-2", role: "merchant" };
+    expect(await supabaseDb.getMerchantPublicProfile("shop@example.com")).toBeNull();
+  });
+});

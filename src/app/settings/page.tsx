@@ -33,14 +33,12 @@ export default function SettingsPage() {
   const origin = useOrigin();
 
   // Merchant Profile State
-  const [businessName, setBusinessName] = useState("Artisan Living Studio");
-  const [contactName, setContactName] = useState("Luxury Oak Merchant");
-  const [contactEmail, setContactEmail] = useState("merchant@artisanstudio.com");
-  const [whatsappNumber, setWhatsappNumber] = useState("01865818044");
-  const [location, setLocation] = useState("Gulshan-2, Dhaka, Bangladesh");
-  const [bio, setBio] = useState(
-    "Luxury architectural handcrafted 3D custom furniture. Made to order with premium Burmese teak and seasoned oak."
-  );
+  const [businessName, setBusinessName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [location, setLocation] = useState("");
+  const [bio, setBio] = useState("");
   const [savingMerchant, setSavingMerchant] = useState(false);
   const [merchantSavedSuccess, setMerchantSavedSuccess] = useState(false);
   const [merchantError, setMerchantError] = useState<string | null>(null);
@@ -138,7 +136,7 @@ export default function SettingsPage() {
           whatsappNumber,
           location,
           bio,
-          email: contactEmail,
+          email: contactEmail || undefined,
         }),
       });
       const json = await res.json();

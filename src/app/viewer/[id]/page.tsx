@@ -48,6 +48,7 @@ function ViewerContent({ id }: { id: string }) {
   const whatsappOn = useFeature("whatsapp_contact");
   const origin = useOrigin();
   const [product, setProduct] = useState<StoredProduct | null>(null);
+  const [merchantWhatsapp, setMerchantWhatsapp] = useState<string | null>(null);
   const [scene, setScene] = useState<ResolvedScene | null>(null);
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [sceneError, setSceneError] = useState<string | null>(null);
@@ -116,6 +117,35 @@ function ViewerContent({ id }: { id: string }) {
     }
     loadProduct();
   }, [id]);
+
+  const merchantId = product?.merchantId;
+  useEffect(() => {
+    if (!merchantId || !whatsappOn) return;
+    let ignore = false;
+    fetch(`/api/merchants/${encodeURIComponent(merchantId)}/public`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!ignore) setMerchantWhatsapp(json.success ? json.data.whatsappNumber : null);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [merchantId, whatsappOn]);
+
+  const whatsappUrl =
+    whatsappOn && product && product.priceBdt > 0
+      ? buildProductWhatsAppUrl(merchantWhatsapp, {
+          id: product.id,
+          name: product.name,
+          category: product.category,
+          priceBdt: product.priceBdt,
+          widthMm: product.widthMm,
+          depthMm: product.depthMm,
+          heightMm: product.heightMm,
+          storeUrl: origin ? `${origin}/viewer/${product.id}` : undefined,
+        })
+      : null;
 
   const canManage =
     !!product && !!user && (isSaasAdmin || (user.role === "merchant" && product.merchantId === user.id));
@@ -624,7 +654,7 @@ function ViewerContent({ id }: { id: string }) {
                 <div className="flex justify-between py-1.5 border-b border-stone-100 items-baseline">
                   <span className="text-stone-500">Purchase Price:</span>
                   <span className="font-bold text-sm text-stone-900 font-mono">
-                    ৳{(product.priceBdt || 18500).toLocaleString("en-BD")}
+                    {product.priceBdt > 0 ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "Price on request"}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-stone-100">
@@ -658,7 +688,7 @@ function ViewerContent({ id }: { id: string }) {
 
             {/* Direct Merchant WhatsApp Ordering Card */}
             <Card className="border-emerald-200/80 bg-emerald-50/40 p-4 space-y-3">
-              {whatsappOn && (
+              {whatsappUrl && (
                 <>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -675,18 +705,9 @@ function ViewerContent({ id }: { id: string }) {
                 </>
               )}
               <div className="flex items-center gap-2">
-                {whatsappOn && (
+                {whatsappUrl && (
                   <a
-                    href={buildProductWhatsAppUrl("01865818044", {
-                      id: product.id,
-                      name: product.name,
-                      category: product.category,
-                      priceBdt: product.priceBdt || 18500,
-                      widthMm: product.widthMm,
-                      depthMm: product.depthMm,
-                      heightMm: product.heightMm,
-                      storeUrl: origin ? `${origin}/viewer/${product.id}` : undefined,
-                    })}
+                    href={whatsappUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1"
@@ -716,7 +737,7 @@ function ViewerContent({ id }: { id: string }) {
                 )}
               </div>
               <Link
-                href={`/store/${product.merchantId || "demo-merchant-001"}`}
+                href={`/store/${product.merchantId}`}
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-[11px] text-stone-600 hover:text-stone-900 font-medium transition-colors pt-1"
               >
