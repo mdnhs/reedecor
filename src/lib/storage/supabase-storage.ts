@@ -46,22 +46,10 @@ export class SupabaseStorageService implements StorageProvider {
     file: Blob | File | Buffer,
     fileName: string,
     productId: string,
-    viewType: "front" | "back" | "left" | "right"
+    viewType: "front" | "back" | "left" | "right" | "single"
   ): Promise<StorageUploadResult> {
     const ext = fileName.split(".").pop()?.toLowerCase() || "jpg";
     const path = `products/${productId}/${viewType}-${Date.now()}.${ext}`;
-
-    if (!this.client) {
-      // Mock / fallback if no credentials set yet
-      return {
-        path,
-        publicUrl: `https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&auto=format&fit=crop`,
-        sizeBytes: 1024 * 500,
-        mimeType: `image/${ext === "jpg" ? "jpeg" : ext}`,
-      };
-    }
-
-    await this.ensureBucket();
 
     const contentType =
       ext === "png"
@@ -69,6 +57,18 @@ export class SupabaseStorageService implements StorageProvider {
         : ext === "webp"
         ? "image/webp"
         : "image/jpeg";
+
+    if (!this.client) {
+      const bytes = Buffer.isBuffer(file) ? file : Buffer.from(await (file as Blob).arrayBuffer());
+      return {
+        path,
+        publicUrl: `data:${contentType};base64,${bytes.toString("base64")}`,
+        sizeBytes: bytes.length,
+        mimeType: contentType,
+      };
+    }
+
+    await this.ensureBucket();
 
     const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
       contentType,

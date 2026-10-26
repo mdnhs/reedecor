@@ -1,6 +1,7 @@
 import type { StoredProduct } from "@/server/demo-store";
 import type { MerchantUserRow } from "@/lib/supabase/db";
 import { getProductThumbnail } from "@/lib/product-thumbnail";
+import { latestModelAttempt } from "@/lib/product-model";
 
 export interface PublicProduct {
   id: string;
@@ -28,7 +29,7 @@ export interface PublicStore {
 }
 
 function toPublicProduct(product: StoredProduct): PublicProduct {
-  const model = product.generationAttempts.find((a) => a.status === "completed" && a.modelUrl);
+  const model = latestModelAttempt(product);
   return {
     id: product.id,
     name: product.name,

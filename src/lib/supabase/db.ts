@@ -250,23 +250,28 @@ export class SupabaseDbService {
     if (error) throw new Error(error.message);
   }
 
+  // Returns false when expectedStatus no longer matches, so a racing cancel or poll is not overwritten
   async updateGenerationAttempt(
     attemptId: string,
-    updates: Partial<StoredProduct["generationAttempts"][0]>
-  ): Promise<void> {
-    if (!this.client) return;
+    updates: Partial<StoredProduct["generationAttempts"][0]>,
+    expectedStatus?: StoredProduct["generationAttempts"][0]["status"]
+  ): Promise<boolean> {
+    if (!this.client) return true;
     const mapped: Record<string, unknown> = {};
     if (updates.status) mapped.status = updates.status;
+    if (updates.providerTaskId !== undefined) mapped.provider_task_id = updates.providerTaskId;
+    if (updates.creditCostEstimate !== undefined) mapped.credit_cost_estimate = updates.creditCostEstimate;
     if (updates.modelUrl !== undefined) mapped.model_url = updates.modelUrl;
     if (updates.errorMessage !== undefined) mapped.error_message = updates.errorMessage;
     if (updates.errorCode !== undefined) mapped.error_code = updates.errorCode;
     if (updates.completedAt !== undefined) mapped.completed_at = updates.completedAt;
     mapped.updated_at = new Date().toISOString();
 
-    const { error } = await this.client.from("generation_attempts").update(mapped).eq("id", attemptId);
-    if (error) {
-      console.error("Supabase updateGenerationAttempt error:", error);
-    }
+    let query = this.client.from("generation_attempts").update(mapped).eq("id", attemptId);
+    if (expectedStatus) query = query.eq("status", expectedStatus);
+    const { data, error } = await query.select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
   }
 
   async findMerchantUser(identifier: string, { byEmail = true } = {}): Promise<MerchantUserRow | null> {

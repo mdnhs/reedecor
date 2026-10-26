@@ -42,7 +42,7 @@ export default function MyProductsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
 
-  const merchantStoreId = user?.id || "demo-merchant-001";
+  const merchantStoreId = user?.id;
 
   useEffect(() => {
     let ignore = false;
@@ -66,6 +66,27 @@ export default function MyProductsPage() {
       ignore = true;
     };
   }, [refreshKey]);
+
+  const processingIds = products
+    .filter((p) => p.status === "processing" || p.status === "queued")
+    .map((p) => p.id)
+    .join(",");
+  useEffect(() => {
+    if (!processingIds) return;
+    const timer = setInterval(async () => {
+      const results = await Promise.all(
+        processingIds.split(",").map((id) =>
+          fetch(`/api/products/${id}/status`)
+            .then((res) => res.json())
+            .catch(() => null)
+        )
+      );
+      if (results.some((json) => json?.data && json.data.status !== "processing")) {
+        setRefreshKey((k) => k + 1);
+      }
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [processingIds]);
 
   useEffect(() => {
     let ignore = false;

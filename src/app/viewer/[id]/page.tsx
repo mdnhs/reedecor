@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { buildProductWhatsAppUrl } from "@/lib/whatsapp";
+import { isSimulatedAttempt, latestModelAttempt } from "@/lib/product-model";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -223,13 +224,14 @@ function ViewerContent({ id }: { id: string }) {
 
   // Download GLB Action
   const handleDownloadGLB = async () => {
-    const latestAttempt = product?.generationAttempts?.[0];
-    const modelUrl = latestAttempt?.modelUrl;
-    if (!modelUrl || !product) return;
+    const modelAttempt = product ? latestModelAttempt(product) : null;
+    const modelUrl = modelAttempt?.modelUrl;
+    if (!modelUrl || !product || !modelAttempt) return;
+    const cacheKey = `${product.id}:${modelAttempt.id}`;
 
     setDownloading(true);
     try {
-      const cached = await getGeneratedModelFromIDB(product.id);
+      const cached = await getGeneratedModelFromIDB(cacheKey);
       let blob: Blob;
 
       if (cached) {
@@ -240,8 +242,9 @@ function ViewerContent({ id }: { id: string }) {
             ? `/api/proxy-model?url=${encodeURIComponent(modelUrl)}`
             : modelUrl;
         const res = await fetch(downloadUrl);
+        if (!res.ok) throw new Error(`Model download failed (${res.status})`);
         blob = await res.blob();
-        await saveGeneratedModelToIDB(product.id, blob, `${product.name}.glb`);
+        await saveGeneratedModelToIDB(cacheKey, blob, `${product.name}.glb`);
       }
 
       const tempUrl = URL.createObjectURL(blob);
@@ -351,7 +354,8 @@ function ViewerContent({ id }: { id: string }) {
   }
 
   const latestAttempt = product.generationAttempts[0];
-  const modelUrl = latestAttempt?.modelUrl;
+  const modelAttempt = latestModelAttempt(product);
+  const modelUrl = modelAttempt?.modelUrl;
   const isCancelled = latestAttempt?.errorCode === "CANCELLED_BY_USER";
 
   return (
@@ -425,58 +429,71 @@ function ViewerContent({ id }: { id: string }) {
             {product.status === "completed" && modelUrl && (authLoading || !sceneLoaded) ? (
               <Skeleton className="h-[550px] w-full" />
             ) : product.status === "completed" && modelUrl ? (
-              <div className="h-[550px] w-full">
+              <div className="w-full space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    AI-generated 3D model
+                  </span>
+                  {modelAttempt && isSimulatedAttempt(modelAttempt) && (
+                    <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs font-semibold text-stone-700">
+                      Simulated sample — not built from your photos
+                    </span>
+                  )}
+                </div>
                 {canEditScene && sceneError && (
-                  <p className="mb-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                     Scene editing is off because the saved scene could not be loaded ({sceneError}). Reload the page to try again.
                   </p>
                 )}
-                <ModelViewer
-                  key={canEditScene ? "edit" : "view"}
-                  modelUrl={modelUrl}
-                  widthMm={product.widthMm}
-                  depthMm={product.depthMm}
-                  heightMm={product.heightMm}
-                  captureName={product.name}
-                  onFirstFrame={
-                    product.thumbnailUrl || !captureOn || !canManage
-                      ? undefined
-                      : (image) => void saveThumbnail(image).catch(() => {})
-                  }
-                  onUseAsThumbnail={!canManage || !captureOn ? undefined : saveThumbnail}
-                  showCapture={captureOn}
-                  showBackdropMenu={backdropOn}
-                  initialBackdrop={scene?.backdrop}
-                  onBackdropChange={setBackdrop}
-                  captureReady={sceneRendered || (canEditScene && !!sceneError)}
-                  onReady={
-                    canEditScene
-                      ? undefined
-                      : (context) => {
-                          if (!scene) {
-                            setSceneRendered(true);
-                            return;
+                <div className="h-140">
+                  <ModelViewer
+                    key={canEditScene ? "edit" : "view"}
+                    modelUrl={modelUrl}
+                    widthMm={product.widthMm}
+                    depthMm={product.depthMm}
+                    heightMm={product.heightMm}
+                    captureName={product.name}
+                    onFirstFrame={
+                      product.thumbnailUrl || !captureOn || !canManage
+                        ? undefined
+                        : (image) => void saveThumbnail(image).catch(() => {})
+                    }
+                    onUseAsThumbnail={!canManage || !captureOn ? undefined : saveThumbnail}
+                    showCapture={captureOn}
+                    showBackdropMenu={backdropOn}
+                    initialBackdrop={scene?.backdrop}
+                    onBackdropChange={setBackdrop}
+                    captureReady={sceneRendered || (canEditScene && !!sceneError)}
+                    onReady={
+                      canEditScene
+                        ? undefined
+                        : (context) => {
+                            if (!scene) {
+                              setSceneRendered(true);
+                              return;
+                            }
+                            const view = new SceneView(context);
+                            void view.load(scene).finally(() => setSceneRendered(true));
+                            return () => view.dispose();
                           }
-                          const view = new SceneView(context);
-                          void view.load(scene).finally(() => setSceneRendered(true));
-                          return () => view.dispose();
-                        }
-                  }
-                  renderOverlay={
-                    canEditScene && !sceneError
-                      ? (context) => (
-                          <SceneEditor
-                            productId={product.id}
-                            context={context}
-                            backdrop={backdrop}
-                            initialScene={scene ?? EMPTY_SCENE_RESOLVED}
-                            onSaved={setScene}
-                            onLoaded={() => setSceneRendered(true)}
-                          />
-                        )
-                      : undefined
-                  }
-                />
+                    }
+                    renderOverlay={
+                      canEditScene && !sceneError
+                        ? (context) => (
+                            <SceneEditor
+                              productId={product.id}
+                              context={context}
+                              backdrop={backdrop}
+                              initialScene={scene ?? EMPTY_SCENE_RESOLVED}
+                              onSaved={setScene}
+                              onLoaded={() => setSceneRendered(true)}
+                            />
+                          )
+                        : undefined
+                    }
+                  />
+                </div>
               </div>
             ) : product.status === "processing" ? (
               <Card className="h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 border-amber-300">

@@ -13,6 +13,16 @@ import { featureRoutes } from "./feature-routes";
 import { featureFlags, featureOffResponse, requireFeature } from "./feature-service";
 import { canManageProduct, isDemoMode, isStaff, PUBLIC_REGISTRATION_ROLES } from "./access";
 import { createFailureLimiter } from "./rate-limit";
+import { decodeImageDataUrl, IMAGE_EXTENSIONS, MAX_PRODUCT_REQUEST_BYTES } from "./product-images";
+import { bodyLimit } from "hono/body-limit";
+import {
+  creditsUsed,
+  DEFAULT_CREDIT_ALLOWANCE,
+  SINGLE_IMAGE_CREDIT_COST,
+  settledStatus,
+  startGeneration,
+  syncGenerationStatus,
+} from "./generation";
 import {
   isAllowedMeshyBaseUrl,
   isAllowedModelUrl,
@@ -55,6 +65,15 @@ async function requireStaff(c: Context): Promise<Guarded<{ user: AppUser }>> {
     return { error: c.json({ success: false, error: "Merchant or admin access required." }, 403) };
   }
   return { user };
+}
+
+async function allProducts(): Promise<StoredProduct[]> {
+  const dbProducts = await supabaseDb.getAllProducts();
+  return supabaseDb.isConfigured() ? dbProducts : inMemoryStore.getAll();
+}
+
+async function merchantProducts(merchantId: string): Promise<StoredProduct[]> {
+  return (await allProducts()).filter((p) => p.merchantId === merchantId);
 }
 
 const staffOnly: MiddlewareHandler = async (c, next) => {
@@ -124,11 +143,10 @@ const createProductSchema = z
       .array(
         z.object({
           viewType: z.enum(["front", "back", "left", "right", "single"]),
-          publicUrl: z.string().url(),
-          fileName: z.string(),
+          publicUrl: z.string(),
+          fileName: z.string().max(200),
           mimeType: z.string(),
           fileSizeBytes: z.number().nonnegative(),
-          storagePath: z.string().optional(),
         })
       )
       .min(1, "At least one product image is required"),
@@ -433,8 +451,7 @@ app.get("/products", async (c) => {
     return c.json({ success: false, error: "Sign in required." }, 401);
   }
 
-  const dbProducts = await supabaseDb.getAllProducts();
-  const products = supabaseDb.isConfigured() ? dbProducts : inMemoryStore.getAll();
+  const products = await allProducts();
   const visible =
     currentUser.role === "saas_admin"
       ? products
@@ -458,13 +475,25 @@ app.get("/products/:id", async (c) => {
 });
 
 // Create Product (Merchant or SaaS Admin Only)
-app.post("/products", requireFeature("model_generation"), staffOnly, zValidator("json", createProductSchema), async (c) => {
+const productBodyLimit = bodyLimit({
+  maxSize: MAX_PRODUCT_REQUEST_BYTES,
+  onError: (c) => c.json({ success: false, error: "Photos are too large. Use images of 10 MB or less." }, 413),
+});
+
+app.post("/products", requireFeature("model_generation"), staffOnly, productBodyLimit, zValidator("json", createProductSchema), async (c) => {
   const staff = await requireStaff(c);
   if ("error" in staff) return staff.error;
 
   const body = c.req.valid("json");
   const id = `prod-${Date.now()}`;
 
+  const decoded = body.images.map((img) => ({ img, file: decodeImageDataUrl(img.publicUrl) }));
+  const invalid = decoded.find(({ file }) => "error" in file);
+  if (invalid && "error" in invalid.file) {
+    return c.json({ success: false, error: invalid.file.error }, 400);
+  }
+
+  const images: StoredProduct["images"] = [];
   const newProduct: StoredProduct = {
     id,
     merchantId: staff.user.id,
@@ -479,19 +508,32 @@ app.post("/products", requireFeature("model_generation"), staffOnly, zValidator(
     status: "draft",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    images: body.images.map((img, idx) => ({
-      id: `img-${id}-${idx}`,
-      viewType: img.viewType,
-      publicUrl: img.publicUrl,
-      storagePath: img.storagePath || `products/${id}/${img.viewType}.jpg`,
-      fileName: img.fileName,
-      mimeType: img.mimeType,
-      fileSizeBytes: img.fileSizeBytes,
-    })),
+    images,
     generationAttempts: [],
   };
 
-  await supabaseDb.createProduct(newProduct);
+  try {
+    for (const [idx, { img, file }] of decoded.entries()) {
+      if ("error" in file) continue;
+      const fileName = `${img.viewType}.${IMAGE_EXTENSIONS[file.mimeType]}`;
+      const upload = await storageService.uploadProductImage(file.buffer, fileName, id, img.viewType);
+      images.push({
+        id: `img-${id}-${idx}`,
+        viewType: img.viewType,
+        publicUrl: upload.publicUrl,
+        storagePath: upload.path,
+        fileName: img.fileName,
+        mimeType: file.mimeType,
+        fileSizeBytes: file.buffer.length,
+      });
+    }
+    await supabaseDb.createProduct(newProduct);
+  } catch (err) {
+    await storageService
+      .removeAssetFiles(images.map((img) => img.storagePath))
+      .catch((cleanupErr) => console.error("[Products] Could not remove uploaded photos:", cleanupErr));
+    throw err;
+  }
   inMemoryStore.add(newProduct);
 
   return c.json({ success: true, data: newProduct }, 201);
@@ -549,288 +591,35 @@ app.post("/products/:id/generate", async (c) => {
   const id = c.req.param("id");
   const guard = await requireManagedProduct(c, id);
   if ("error" in guard) return guard.error;
-  const { product } = guard;
 
-  const isSingleImage =
-    product.generationMode === "image_to_3d" || product.images.length === 1;
-
-  if (isSingleImage && product.images.length < 1) {
-    return c.json(
-      { success: false, error: "Product must have at least 1 image for Single Image to 3D" },
-      400
-    );
-  }
-
-  if (!isSingleImage && product.images.length < 4) {
-    return c.json(
-      { success: false, error: "Multi-Image to 3D requires all 4 angle views (front, back, left, right)" },
-      400
-    );
-  }
-
-  const attemptId = `gen-${Date.now()}`;
   const settings = await supabaseDb.getSystemSettings();
-  meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
-  const creditEstimate = isSingleImage ? 10 : settings.meshyCreditsPerGeneration;
-
-  try {
-    let taskId: string;
-    if (isSingleImage) {
-      const res = await meshyClient.createImageTo3dTask({
-        imageUrl: product.images[0].publicUrl,
-        shouldTexture: true,
-        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-        enablePbr: true,
-        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-        aiModel: settings.meshyModel || "meshy-7.1",
-      });
-      taskId = res.taskId;
-    } else {
-      const viewOrder = ["front", "back", "left", "right"];
-      const orderedImages = [...product.images].sort(
-        (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
-      );
-      const imageUrls = orderedImages.map((img) => img.publicUrl);
-
-      const res = await meshyClient.createMultiImageTask({
-        imageUrls,
-        shouldTexture: true,
-        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-        enablePbr: true,
-        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-        aiModel: settings.meshyModel || "meshy-7.1",
-      });
-      taskId = res.taskId;
-    }
-
-    const newAttempt = {
-      id: attemptId,
-      provider: "meshy",
-      providerTaskId: taskId,
-      status: "processing" as const,
-      modelUrl: null,
-      creditCostEstimate: creditEstimate,
-      errorCode: null,
-      errorMessage: null,
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-    };
-
-    await supabaseDb.addGenerationAttempt(id, newAttempt);
-    await supabaseDb.updateProductStatus(id, "processing");
-
-    inMemoryStore.update(id, (p) => ({
-      ...p,
-      status: "processing",
-      updatedAt: new Date().toISOString(),
-      generationAttempts: [newAttempt, ...p.generationAttempts],
-    }));
-
-    return c.json({
-      success: true,
-      data: {
-        attemptId,
-        providerTaskId: taskId,
-        status: "processing",
-      },
-    });
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : "Failed to initiate generation";
-    const failedAttempt = {
-      id: attemptId,
-      provider: "meshy",
-      providerTaskId: null,
-      status: "failed" as const,
-      modelUrl: null,
-      creditCostEstimate: 0,
-      errorCode: "GENERATION_INIT_FAILED",
-      errorMessage,
-      createdAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-    };
-
-    await supabaseDb.addGenerationAttempt(id, failedAttempt);
-    await supabaseDb.updateProductStatus(id, "failed");
-
-    inMemoryStore.update(id, (p) => ({
-      ...p,
-      status: "failed",
-      updatedAt: new Date().toISOString(),
-      generationAttempts: [failedAttempt, ...p.generationAttempts],
-    }));
-
-    return c.json({ success: false, error: errorMessage }, 500);
+  const used = creditsUsed(await merchantProducts(guard.product.merchantId));
+  const result = await startGeneration(guard.product, settings, used, `gen-${Date.now()}`);
+  if (result.status !== 200) {
+    return c.json({ success: false, error: result.error }, result.status);
   }
+  return c.json({
+    success: true,
+    data: { attemptId: result.attempt.id, providerTaskId: result.attempt.providerTaskId, status: "processing" },
+  });
 });
 
-// Check Generation Status (Accessible to All)
+// Check Generation Status (also advances the attempt when Meshy reports a result)
 app.get("/products/:id/status", async (c) => {
   const id = c.req.param("id");
-  let product = await supabaseDb.getProductById(id);
-  const memProd = inMemoryStore.getById(id);
-  if (product && memProd && product.generationAttempts.length === 0 && memProd.generationAttempts.length > 0) {
-    product.generationAttempts = memProd.generationAttempts;
-  }
-  if (!product) {
-    product = memProd;
-  }
+  const product = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
   if (!product) {
     return c.json({ success: false, error: "Product not found" }, 404);
   }
 
-  const latestAttempt = product.generationAttempts[0];
-  if (!latestAttempt) {
-    if (product.status === "completed") {
-      return c.json({
-        success: true,
-        data: { status: "completed", progress: 100 },
-      });
-    }
-    return c.json({
-      success: true,
-      data: { status: product.status, progress: product.status === "processing" ? 30 : 0 },
-    });
+  if (!canManageProduct(await getCurrentUser(c), product)) {
+    if (product.status !== "completed") return c.json({ success: false, error: "Product not found" }, 404);
+    return c.json({ success: true, data: settledStatus(product).body });
   }
 
-  if (latestAttempt.status === "completed" || latestAttempt.status === "failed") {
-    return c.json({
-      success: true,
-      data: {
-        status: latestAttempt.status,
-        progress: latestAttempt.status === "completed" ? 100 : 0,
-        modelUrl: latestAttempt.modelUrl,
-        errorMessage: latestAttempt.errorMessage,
-      },
-    });
-  }
-
-  if (latestAttempt.providerTaskId) {
-    try {
-      const settings = await supabaseDb.getSystemSettings();
-      meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
-
-      const mode = product.generationMode || (product.images.length === 1 ? "image_to_3d" : "multi_image_to_3d");
-      const task = await meshyClient.getTaskStatus(latestAttempt.providerTaskId, mode);
-
-      if (task.status === "SUCCEEDED" && (task.model_urls?.glb || task.model_url)) {
-        let modelUrl = task.model_urls?.glb || task.model_url || "";
-
-        // Cache the GLB permanently in Supabase Storage to prevent 24hr Meshy CloudFront signed URL expiration
-        try {
-          const glbRes = await fetch(modelUrl);
-          if (glbRes.ok) {
-            let glbBuffer: Buffer = Buffer.from(await glbRes.arrayBuffer());
-
-            // Optimize & compress GLB (Draco + deduplication + weld) to shrink size by 50-85%
-            try {
-              const { optimizeGlbBuffer } = await import("@/lib/storage/glb-optimizer");
-              const optimized = await optimizeGlbBuffer(glbBuffer);
-              glbBuffer = Buffer.from(optimized.buffer, optimized.byteOffset, optimized.byteLength);
-            } catch (optErr) {
-              console.warn("[Meshy Sync] GLB optimization skipped:", optErr);
-            }
-
-            const uploadRes = await storageService.uploadModelFile(glbBuffer, `${id}.glb`, id);
-            if (uploadRes?.publicUrl) {
-              modelUrl = uploadRes.publicUrl;
-            }
-          }
-        } catch (uploadErr) {
-          console.warn("[Meshy Sync] Failed to cache GLB in Supabase Storage:", uploadErr);
-        }
-
-        await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
-          status: "completed",
-          modelUrl,
-          completedAt: new Date().toISOString(),
-        });
-        await supabaseDb.updateProductStatus(id, "completed");
-
-        inMemoryStore.update(id, (p) => {
-          const updatedAttempts = [...p.generationAttempts];
-          updatedAttempts[0] = {
-            ...updatedAttempts[0],
-            status: "completed",
-            modelUrl,
-            completedAt: new Date().toISOString(),
-          };
-          return {
-            ...p,
-            status: "completed",
-            updatedAt: new Date().toISOString(),
-            generationAttempts: updatedAttempts,
-          };
-        });
-
-        return c.json({
-          success: true,
-          data: {
-            status: "completed",
-            progress: 100,
-            modelUrl,
-          },
-        });
-      } else if (task.status === "FAILED") {
-        const errorMsg = task.task_error?.message || "Meshy generation failed";
-
-        await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
-          status: "failed",
-          errorMessage: errorMsg,
-          errorCode: "PROVIDER_FAILED",
-          completedAt: new Date().toISOString(),
-        });
-        await supabaseDb.updateProductStatus(id, "failed");
-
-        inMemoryStore.update(id, (p) => {
-          const updatedAttempts = [...p.generationAttempts];
-          updatedAttempts[0] = {
-            ...updatedAttempts[0],
-            status: "failed",
-            errorMessage: errorMsg,
-            errorCode: "PROVIDER_FAILED",
-            completedAt: new Date().toISOString(),
-          };
-          return {
-            ...p,
-            status: "failed",
-            updatedAt: new Date().toISOString(),
-            generationAttempts: updatedAttempts,
-          };
-        });
-
-        return c.json({
-          success: true,
-          data: {
-            status: "failed",
-            progress: 0,
-            errorMessage: errorMsg,
-          },
-        });
-      } else {
-        return c.json({
-          success: true,
-          data: {
-            status: "processing",
-            progress: task.progress || 35,
-          },
-        });
-      }
-    } catch (err: unknown) {
-      return c.json({
-        success: true,
-        data: {
-          status: "processing",
-          progress: 50,
-          warning: err instanceof Error ? err.message : "Polling transient issue",
-        },
-      });
-    }
-  }
-
-  return c.json({
-    success: true,
-    data: { status: "processing", progress: 20 },
-  });
+  const settings = await supabaseDb.getSystemSettings();
+  const result = await syncGenerationStatus(product, settings);
+  return c.json({ success: result.httpStatus === 200, data: result.body }, result.httpStatus);
 });
 
 // Retry Generation (Merchant or SaaS Admin Only)
@@ -839,86 +628,17 @@ app.post("/products/:id/retry", async (c) => {
   const id = c.req.param("id");
   const guard = await requireManagedProduct(c, id);
   if ("error" in guard) return guard.error;
-  const { product } = guard;
 
-  const isSingleImage =
-    product.generationMode === "image_to_3d" || product.images.length === 1;
-
-  const attemptId = `gen-retry-${Date.now()}`;
   const settings = await supabaseDb.getSystemSettings();
-  meshyClient.updateConfig(settings.meshyApiKey, settings.meshyApiBaseUrl);
-  const creditEstimate = isSingleImage ? 10 : settings.meshyCreditsPerGeneration;
-
-  try {
-    let taskId: string;
-    if (isSingleImage) {
-      const res = await meshyClient.createImageTo3dTask({
-        imageUrl: product.images[0].publicUrl,
-        shouldTexture: true,
-        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-        enablePbr: true,
-        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-        aiModel: settings.meshyModel || "meshy-7.1",
-      });
-      taskId = res.taskId;
-    } else {
-      const viewOrder = ["front", "back", "left", "right"];
-      const orderedImages = [...product.images].sort(
-        (a, b) => viewOrder.indexOf(a.viewType) - viewOrder.indexOf(b.viewType)
-      );
-      const imageUrls = orderedImages.map((img) => img.publicUrl);
-
-      const res = await meshyClient.createMultiImageTask({
-        imageUrls,
-        shouldTexture: true,
-        textureResolution: (settings.meshyTextureResolution as "2k" | "4k" | "8k") || "2k",
-        enablePbr: true,
-        modelType: settings.meshyGeometryResolution === "high_poly" ? "high_poly" : "standard",
-        aiModel: settings.meshyModel || "meshy-7.1",
-      });
-      taskId = res.taskId;
-    }
-
-    const newAttempt = {
-      id: attemptId,
-      provider: "meshy",
-      providerTaskId: taskId,
-      status: "processing" as const,
-      modelUrl: null,
-      creditCostEstimate: creditEstimate,
-      errorCode: null,
-      errorMessage: null,
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-    };
-
-    await supabaseDb.addGenerationAttempt(id, newAttempt);
-    await supabaseDb.updateProductStatus(id, "processing");
-
-    inMemoryStore.update(id, (p) => ({
-      ...p,
-      status: "processing",
-      updatedAt: new Date().toISOString(),
-      generationAttempts: [newAttempt, ...p.generationAttempts],
-    }));
-
-    return c.json({
-      success: true,
-      data: {
-        attemptId,
-        providerTaskId: taskId,
-        status: "processing",
-      },
-    });
-  } catch (err: unknown) {
-    return c.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : "Failed to retry generation",
-      },
-      500
-    );
+  const used = creditsUsed(await merchantProducts(guard.product.merchantId));
+  const result = await startGeneration(guard.product, settings, used, `gen-retry-${Date.now()}`);
+  if (result.status !== 200) {
+    return c.json({ success: false, error: result.error }, result.status);
   }
+  return c.json({
+    success: true,
+    data: { attemptId: result.attempt.id, providerTaskId: result.attempt.providerTaskId, status: "processing" },
+  });
 });
 
 // Cancel 3D Generation Task (Merchant or SaaS Admin)
@@ -942,41 +662,29 @@ app.post("/products/:id/cancel", async (c) => {
   } catch {
     body = {};
   }
-  const targetStatus = body.resetToDraft ? "draft" : "failed";
+  const hasEarlierModel = product.generationAttempts.some((a, i) => i > 0 && a.status === "completed" && a.modelUrl);
+  const targetStatus = hasEarlierModel ? "completed" : body.resetToDraft ? "draft" : "failed";
 
   const latestAttempt = product.generationAttempts[0];
   if (latestAttempt && (latestAttempt.status === "processing" || latestAttempt.status === "queued")) {
-    await supabaseDb.updateGenerationAttempt(latestAttempt.id, {
-      status: "failed",
+    const cancelled = {
+      status: "failed" as const,
       errorCode: "CANCELLED_BY_USER",
       errorMessage: "Generation was cancelled by the user.",
       completedAt: now,
-    });
+    };
+    const applied = await supabaseDb.updateGenerationAttempt(latestAttempt.id, cancelled, latestAttempt.status);
+    if (!applied) {
+      return c.json({ success: false, error: "This generation already finished and can no longer be cancelled." }, 409);
+    }
+    inMemoryStore.update(id, (p) => ({
+      ...p,
+      generationAttempts: p.generationAttempts.map((a) => (a.id === latestAttempt.id ? { ...a, ...cancelled } : a)),
+    }));
   }
 
   await supabaseDb.updateProductStatus(id, targetStatus);
-
-  inMemoryStore.update(id, (p) => {
-    const updatedAttempts = [...p.generationAttempts];
-    if (
-      updatedAttempts[0] &&
-      (updatedAttempts[0].status === "processing" || updatedAttempts[0].status === "queued")
-    ) {
-      updatedAttempts[0] = {
-        ...updatedAttempts[0],
-        status: "failed",
-        errorCode: "CANCELLED_BY_USER",
-        errorMessage: "Generation was cancelled by the user.",
-        completedAt: now,
-      };
-    }
-    return {
-      ...p,
-      status: targetStatus,
-      updatedAt: now,
-      generationAttempts: updatedAttempts,
-    };
-  });
+  inMemoryStore.update(id, (p) => ({ ...p, status: targetStatus, updatedAt: now }));
 
   const updatedProduct = (await supabaseDb.getProductById(id)) || inMemoryStore.getById(id);
 
@@ -1027,40 +735,33 @@ app.get("/credits/usage", async (c) => {
   const staff = await requireStaff(c);
   if ("error" in staff) return staff.error;
 
-  const dbProducts = await supabaseDb.getAllProducts();
-  const allProducts = supabaseDb.isConfigured() ? dbProducts : inMemoryStore.getAll();
   const products =
-    staff.user.role === "saas_admin" ? allProducts : allProducts.filter((p) => p.merchantId === staff.user.id);
-  const allAttempts = products.flatMap((p) => p.generationAttempts);
-
-  const totalAttempts = allAttempts.length;
-  const completedAttempts = allAttempts.filter((a) => a.status === "completed").length;
-  const failedAttempts = allAttempts.filter((a) => a.status === "failed").length;
-  const processingAttempts = allAttempts.filter((a) => a.status === "processing").length;
+    staff.user.role === "saas_admin" ? await allProducts() : await merchantProducts(staff.user.id);
+  const attempts = products
+    .flatMap((p) => p.generationAttempts.map((a) => ({ ...a, productId: p.id, productName: p.name })))
+    .sort((x, y) => y.createdAt.localeCompare(x.createdAt));
 
   const settings = await supabaseDb.getSystemSettings();
-  const creditsPerGen = settings.meshyCreditsPerGeneration;
-  const costPerCreditUSD = settings.costPerCreditUsd;
-  const usdToBdtRate = settings.usdToBdtRate;
-
-  const totalCreditsUsed = completedAttempts * creditsPerGen;
-  const totalCostUSD = totalCreditsUsed * costPerCreditUSD;
-  const totalCostBDT = totalCostUSD * usdToBdtRate;
+  const used = creditsUsed(products);
+  const totalCostUSD = used * settings.costPerCreditUsd;
 
   return c.json({
     success: true,
     data: {
-      totalAttempts,
-      completedAttempts,
-      failedAttempts,
-      processingAttempts,
-      totalCreditsUsed,
+      allowance: DEFAULT_CREDIT_ALLOWANCE,
+      used,
+      remaining: Math.max(0, DEFAULT_CREDIT_ALLOWANCE - used),
+      singleImageCost: SINGLE_IMAGE_CREDIT_COST,
+      multiImageCost: settings.meshyCreditsPerGeneration,
+      totalAttempts: attempts.length,
+      completedAttempts: attempts.filter((a) => a.status === "completed").length,
+      failedAttempts: attempts.filter((a) => a.status === "failed").length,
+      processingAttempts: attempts.filter((a) => a.status === "processing" || a.status === "queued").length,
       totalCostUSD,
-      totalCostBDT,
-      usdToBdtRate,
-      creditsPerGen,
-      costPerCreditUSD,
-      history: allAttempts.slice(0, 20),
+      totalCostBDT: totalCostUSD * settings.usdToBdtRate,
+      usdToBdtRate: settings.usdToBdtRate,
+      costPerCreditUSD: settings.costPerCreditUsd,
+      history: attempts.slice(0, 20),
     },
   });
 });

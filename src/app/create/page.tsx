@@ -104,8 +104,8 @@ export default function CreateProductPage() {
       return;
     }
 
-    if (file.size > 20 * 1024 * 1024) {
-      setError(`File size exceeds 20MB limit.`);
+    if (file.size > 10 * 1024 * 1024) {
+      setError(`File size exceeds 10MB limit.`);
       return;
     }
 
@@ -845,7 +845,7 @@ function DropzoneSlot({
                 Click or drag image
               </p>
               <p className="text-[10px] text-stone-400 mt-0.5">
-                PNG, JPG, WebP up to 20MB
+                PNG, JPG, WebP up to 10MB
               </p>
             </div>
           </div>

@@ -21,3 +21,32 @@ describe("optimizeGlbBuffer", () => {
     expect(output.equals(input)).toBe(true);
   });
 });
+
+describe("optimizeGlbBuffer provenance", () => {
+  async function meshyGlb() {
+    const { Document, NodeIO } = await import("@gltf-transform/core");
+    const doc = new Document();
+    doc.getRoot().getAsset().generator = "Meshy AI";
+    doc.createBuffer();
+    doc.createScene("s").addChild(doc.createNode("n"));
+    return Buffer.from(await new NodeIO().writeBinary(doc));
+  }
+
+  async function assetOf(glb: Buffer) {
+    const { NodeIO } = await import("@gltf-transform/core");
+    const json = await new NodeIO().binaryToJSON(new Uint8Array(glb));
+    return json.json.asset;
+  }
+
+  it("marks the model as AI-generated and keeps the original generator", async () => {
+    const output = await optimizeGlbBuffer(await meshyGlb(), {
+      enableDraco: false,
+      strict: true,
+      provenance: { aiGenerated: true, provider: "meshy", taskId: "task-9" },
+    });
+    const asset = await assetOf(output);
+    expect(asset.extras).toMatchObject({
+      provenance: { aiGenerated: true, provider: "meshy", taskId: "task-9", sourceGenerator: "Meshy AI" },
+    });
+  });
+});

@@ -21,14 +21,18 @@ interface UsageData {
   completedAttempts: number;
   failedAttempts: number;
   processingAttempts: number;
-  totalCreditsUsed: number;
+  allowance: number;
+  used: number;
+  remaining: number;
+  singleImageCost: number;
+  multiImageCost: number;
   totalCostUSD: number;
   totalCostBDT: number;
   usdToBdtRate: number;
-  creditsPerGen: number;
   costPerCreditUSD: number;
   history: Array<{
     id: string;
+    productName: string;
     provider: string;
     providerTaskId?: string | null;
     status: string;
@@ -122,11 +126,11 @@ export default function CreditsPage() {
                 <Skeleton className="h-8 w-20" />
               ) : (
                 <div className="text-2xl font-bold tracking-tight text-stone-900">
-                  {data?.totalCreditsUsed || 0}
+                  {data ? data.used : "—"}
                 </div>
               )}
               <p className="text-xs text-stone-500 mt-1">
-                @ {data?.creditsPerGen || 20} credits / 3D model
+                {data ? `${data.singleImageCost} per single image • ${data.multiImageCost} per multi-angle model` : "—"}
               </p>
             </CardContent>
           </Card>
@@ -143,11 +147,11 @@ export default function CreditsPage() {
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <div className="text-2xl font-bold tracking-tight text-stone-900">
-                  {formatCurrencyBDT(data?.totalCostUSD || 0, data?.usdToBdtRate || 122.5)}
+                  {data ? formatCurrencyBDT(data.totalCostUSD, data.usdToBdtRate) : "—"}
                 </div>
               )}
               <p className="text-xs text-stone-500 mt-1">
-                Rate: 1 USD ≈ ৳{data?.usdToBdtRate || 122.5}
+                {data ? `Rate: 1 USD ≈ ৳${data.usdToBdtRate}` : "—"}
               </p>
             </CardContent>
           </Card>
@@ -176,15 +180,15 @@ export default function CreditsPage() {
           <Card className="border-stone-200/80 bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <span className="text-xs font-medium text-stone-500 uppercase tracking-wider">
-                Demo Credits Left
+                Credits Left
               </span>
               <Coins className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tracking-tight text-amber-700">
-                {Math.max(0, 100 - (data?.totalCreditsUsed || 0))}
+                {data ? data.remaining : "—"}
               </div>
-              <p className="text-xs text-stone-500 mt-1">Sandbox demo balance</p>
+              <p className="text-xs text-stone-500 mt-1">{data ? `of ${data.allowance} included credits` : "—"}</p>
             </CardContent>
           </Card>
         </div>
@@ -198,8 +202,14 @@ export default function CreditsPage() {
                 Transparent Costing Configuration
               </p>
               <p>
-                Meshy AI standard multi-image generation consumes an estimated{" "}
-                <strong>{data?.creditsPerGen || 20} credits</strong> per task. Currency conversions are calculated dynamically at the configured exchange rate (1 USD = ৳{data?.usdToBdtRate || 122.5}). This dashboard is currently operating in sandbox demo mode with zero actual billing charges.
+                {data ? (
+                  <>
+                    Each AI generation reserves <strong>{data.singleImageCost} credits</strong> for a single photo or{" "}
+                    <strong>{data.multiImageCost} credits</strong> for four angles. Cancelled and unstarted tasks are not counted. Costs use the configured rate of 1 USD = ৳{data.usdToBdtRate}.
+                  </>
+                ) : (
+                  "Usage could not be loaded."
+                )}
               </p>
             </div>
           </CardContent>
@@ -232,7 +242,7 @@ export default function CreditsPage() {
                   <thead>
                     <tr className="border-b border-stone-200 text-stone-500">
                       <th className="pb-3 font-semibold">Attempt ID</th>
-                      <th className="pb-3 font-semibold">Provider</th>
+                      <th className="pb-3 font-semibold">Product</th>
                       <th className="pb-3 font-semibold">Status</th>
                       <th className="pb-3 font-semibold">Credit Cost</th>
                       <th className="pb-3 font-semibold">Timestamp</th>
@@ -245,7 +255,7 @@ export default function CreditsPage() {
                           {row.id}
                         </td>
                         <td className="py-3 font-medium text-stone-800">
-                          Meshy AI (Multi-Image)
+                          {row.productName}
                         </td>
                         <td className="py-3">
                           <Badge

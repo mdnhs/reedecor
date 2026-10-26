@@ -3,9 +3,16 @@ import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { dedup, prune, weld, draco } from "@gltf-transform/functions";
 import draco3d from "draco3d";
 
+export interface GlbProvenance {
+  aiGenerated: true;
+  provider: string;
+  taskId: string | null;
+}
+
 export interface GlbOptimizeOptions {
   enableDraco?: boolean;
   strict?: boolean;
+  provenance?: GlbProvenance;
 }
 
 let ioPromise: Promise<NodeIO> | null = null;
@@ -41,7 +48,17 @@ export async function optimizeGlbBuffer(
 ): Promise<Buffer> {
   try {
     const io = await getOptimizerIO();
-    const document = await io.readBinary(new Uint8Array(inputBuffer));
+    const jsonDoc = await io.binaryToJSON(new Uint8Array(inputBuffer));
+    const sourceGenerator = jsonDoc.json.asset?.generator ?? null;
+    const document = await io.readJSON(jsonDoc);
+    if (options.provenance) {
+      // glTF-Transform replaces asset.generator, so the source generator is kept in extras
+      const asset = document.getRoot().getAsset();
+      asset.extras = {
+        ...(asset.extras as Record<string, unknown> | undefined),
+        provenance: { ...options.provenance, sourceGenerator },
+      };
+    }
 
     const transforms = [dedup(), prune(), weld()];
 

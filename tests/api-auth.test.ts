@@ -26,14 +26,17 @@ const mocks = vi.hoisted(() => ({
     updateSystemSettings: vi.fn(),
     getMerchantPublicProfile: vi.fn(),
     updateMerchantProfile: vi.fn(),
+    updateGenerationAttempt: vi.fn(),
+    updateProductStatus: vi.fn(),
   },
-  storageService: { deleteProductAssets: vi.fn() },
+  storageService: { deleteProductAssets: vi.fn(), uploadProductImage: vi.fn(), removeAssetFiles: vi.fn() },
+  meshy: { updateConfig: vi.fn(), isConfigured: vi.fn(() => true), getTaskStatus: vi.fn() },
 }));
 
 vi.mock("@/lib/supabase/auth-service", () => ({ authService: mocks.authService }));
 vi.mock("@/lib/supabase/db", () => ({ supabaseDb: { ...mocks.supabaseDb, isConfigured: () => true }, getSupabaseClient: () => null }));
 vi.mock("@/lib/storage/supabase-storage", () => ({ storageService: mocks.storageService }));
-vi.mock("@/lib/meshy/client", () => ({ meshyClient: { updateConfig: vi.fn() } }));
+vi.mock("@/lib/meshy/client", () => ({ meshyClient: mocks.meshy }));
 vi.mock("@/lib/supabase/assets-db", () => ({ assetsDb: {} }));
 vi.mock("@/lib/supabase/scenes-db", () => ({ scenesDb: {} }));
 vi.mock("@/lib/supabase/features-db", () => ({ featuresDb: {} }));
@@ -83,7 +86,28 @@ function req(path: string, token: string | null, init: RequestInit = {}) {
   });
 }
 
+const busy = product("p-busy", "m-owner", "processing");
+busy.generationAttempts = [
+  {
+    id: "g-busy",
+    provider: "meshy",
+    providerTaskId: "t-busy",
+    status: "processing",
+    modelUrl: null,
+    creditCostEstimate: 20,
+    createdAt: "2026-10-26T00:00:00Z",
+  },
+];
+
+const retrying = product("p-retrying", "m-owner", "processing");
+retrying.generationAttempts = [
+  { ...busy.generationAttempts[0], id: "g-retry" },
+  { ...busy.generationAttempts[0], id: "g-done", status: "completed", modelUrl: "https://cdn/m.glb" },
+];
+
 const products = [
+  busy,
+  retrying,
   product("p-owner", "m-owner"),
   product("p-owner-draft", "m-owner", "draft"),
   product("p-other", "m-other"),
@@ -196,7 +220,7 @@ describe("product access", () => {
 
   it("lists only the merchant's own products", async () => {
     const json = await (await req("/api/products", "owner-token")).json();
-    expect(json.data.map((p: StoredProduct) => p.id)).toEqual(["p-owner", "p-owner-draft"]);
+    expect(json.data.map((p: StoredProduct) => p.id)).toEqual(["p-busy", "p-retrying", "p-owner", "p-owner-draft"]);
   });
 
   it("lists only completed products to customers", async () => {
@@ -361,5 +385,151 @@ describe("data layer failures", () => {
     mocks.supabaseDb.getAllProducts.mockResolvedValueOnce([]);
     const json = await (await req("/api/products", "admin-token")).json();
     expect(json.data).toEqual([]);
+  });
+});
+
+describe("generation routes", () => {
+  beforeEach(() => {
+    mocks.supabaseDb.getSystemSettings.mockResolvedValue({ meshyCreditsPerGeneration: 20, meshyApiKey: "k" });
+  });
+
+  it("refuses a retry while a generation is still running", async () => {
+    const res = await req("/api/products/p-busy/retry", "owner-token", { method: "POST" });
+    expect(res.status).toBe(409);
+  });
+
+  it("reports the merchant's own credit balance", async () => {
+    const json = await (await req("/api/credits/usage", "owner-token")).json();
+    expect(json.data).toMatchObject({ allowance: 100, used: 60, remaining: 40 });
+  });
+});
+
+describe("cancel route", () => {
+  it("refuses to cancel when the attempt already finished", async () => {
+    mocks.supabaseDb.updateGenerationAttempt.mockResolvedValueOnce(false);
+    const res = await req("/api/products/p-busy/cancel", "owner-token", { method: "POST" });
+    expect(res.status).toBe(409);
+    expect(mocks.supabaseDb.updateProductStatus).not.toHaveBeenCalled();
+  });
+
+  it("cancels a running attempt only while it is still processing", async () => {
+    mocks.supabaseDb.updateGenerationAttempt.mockResolvedValueOnce(true);
+    const res = await req("/api/products/p-busy/cancel", "owner-token", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(mocks.supabaseDb.updateGenerationAttempt).toHaveBeenCalledWith(
+      "g-busy",
+      expect.objectContaining({ errorCode: "CANCELLED_BY_USER" }),
+      "processing"
+    );
+  });
+});
+
+describe("cancelling a retry", () => {
+  it("keeps the product completed when an earlier model exists", async () => {
+    mocks.supabaseDb.updateGenerationAttempt.mockResolvedValueOnce(true);
+    await req("/api/products/p-retrying/cancel", "owner-token", { method: "POST" });
+    expect(mocks.supabaseDb.updateProductStatus).toHaveBeenCalledWith("p-retrying", "completed");
+  });
+});
+
+describe("product creation images", () => {
+  const dataUrl = `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`;
+  const body = (images: unknown[]) =>
+    JSON.stringify({
+      name: "Oak Chair",
+      category: "Chair",
+      widthMm: 500,
+      depthMm: 500,
+      heightMm: 800,
+      generationMode: "image_to_3d",
+      images,
+    });
+
+  it("uploads photos to storage and stores the storage URL, not the base64 data", async () => {
+    mocks.storageService.uploadProductImage.mockResolvedValue({ path: "products/x/single.jpg", publicUrl: "https://cdn/single.jpg" });
+    const res = await req("/api/products", "owner-token", {
+      method: "POST",
+      body: body([{ viewType: "single", publicUrl: dataUrl, fileName: "a.jpg", mimeType: "image/jpeg", fileSizeBytes: 4 }]),
+    });
+    expect(res.status).toBe(201);
+    const saved = mocks.supabaseDb.createProduct.mock.calls[0][0] as StoredProduct;
+    expect(saved.images[0]).toMatchObject({ publicUrl: "https://cdn/single.jpg", storagePath: "products/x/single.jpg" });
+  });
+
+  it("rejects photos that are not uploaded image files", async () => {
+    const res = await req("/api/products", "owner-token", {
+      method: "POST",
+      body: body([{ viewType: "single", publicUrl: "https://evil.com/a.jpg", fileName: "a.jpg", mimeType: "image/jpeg", fileSizeBytes: 4 }]),
+    });
+    expect(res.status).toBe(400);
+    expect(mocks.supabaseDb.createProduct).not.toHaveBeenCalled();
+  });
+});
+
+describe("status route", () => {
+  beforeEach(() => {
+    mocks.supabaseDb.getSystemSettings.mockResolvedValue({ meshyApiKey: "k" });
+    mocks.meshy.getTaskStatus.mockResolvedValue({ status: "IN_PROGRESS", progress: 40 });
+  });
+
+  it("lets the owner advance a running generation", async () => {
+    const res = await req("/api/products/p-busy/status", "owner-token");
+    expect(res.status).toBe(200);
+    expect(mocks.meshy.getTaskStatus).toHaveBeenCalled();
+  });
+
+  it("hides another merchant's unfinished product", async () => {
+    const res = await req("/api/products/p-busy/status", "other-token");
+    expect(res.status).toBe(404);
+    expect(mocks.meshy.getTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it("never calls Meshy for a signed-out visitor", async () => {
+    const res = await req("/api/products/p-busy/status", null);
+    expect(res.status).toBe(404);
+    expect(mocks.meshy.getTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it("shows stored status of a finished product to anyone", async () => {
+    const res = await req("/api/products/p-owner/status", null);
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("product creation safeguards", () => {
+  const png = `data:image/png;base64,${Buffer.from("png").toString("base64")}`;
+  const body = JSON.stringify({
+    name: "Oak Chair",
+    category: "Chair",
+    widthMm: 500,
+    depthMm: 500,
+    heightMm: 800,
+    generationMode: "image_to_3d",
+    images: [{ viewType: "single", publicUrl: png, fileName: "photo.jpg", mimeType: "image/jpeg", fileSizeBytes: 3 }],
+  });
+
+  beforeEach(() => {
+    mocks.storageService.uploadProductImage.mockResolvedValue({ path: "products/x/single.png", publicUrl: "https://cdn/single.png" });
+  });
+
+  it("names the stored file after the real image type, not the client file name", async () => {
+    await req("/api/products", "owner-token", { method: "POST", body });
+    expect(mocks.storageService.uploadProductImage.mock.calls[0][1]).toBe("single.png");
+  });
+
+  it("removes uploaded photos when the product cannot be saved", async () => {
+    mocks.supabaseDb.createProduct.mockRejectedValueOnce(new Error("db down"));
+    const res = await req("/api/products", "owner-token", { method: "POST", body });
+    expect(res.status).toBe(500);
+    expect(mocks.storageService.removeAssetFiles).toHaveBeenCalledWith(["products/x/single.png"]);
+  });
+
+  it("rejects request bodies larger than four full-size photos", async () => {
+    const res = await req("/api/products", "owner-token", {
+      method: "POST",
+      headers: { "content-length": String(80 * 1024 * 1024) },
+      body,
+    });
+    expect(res.status).toBe(413);
   });
 });
