@@ -231,7 +231,7 @@ export default function SettingsPage() {
                     <CardTitle className="text-sm font-bold text-stone-900">
                       SaaS Admin Platform Configuration (Database Stored)
                     </CardTitle>
-                    <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold">
+                    <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-bold">
                       Supabase DB Live
                     </Badge>
                   </div>
@@ -242,7 +242,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Badge variant="success" className="gap-1 text-[10px]">
+                <Badge variant="success" className="gap-1 text-xs">
                   <Database className="w-3 h-3" />
                   <span>public.system_settings</span>
                 </Badge>
@@ -280,7 +280,7 @@ export default function SettingsPage() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
                       <span>MESHY_API_KEY <span className="text-rose-500">*</span></span>
-                      <span className="text-[10px] text-stone-400 font-mono">Secret Key for 3D generation</span>
+                      <span className="text-xs text-stone-400 font-mono">Secret Key for 3D generation</span>
                     </label>
                     <div className="relative">
                       <Input
@@ -391,7 +391,7 @@ export default function SettingsPage() {
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
                         <span>USD_TO_BDT_RATE</span>
-                        <span className="text-[10px] text-stone-400 font-normal">BDT per 1 USD</span>
+                        <span className="text-xs text-stone-400 font-normal">BDT per 1 USD</span>
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
@@ -412,7 +412,7 @@ export default function SettingsPage() {
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
                         <span>COST_PER_CREDIT_USD</span>
-                        <span className="text-[10px] text-stone-400 font-normal">USD cost per 1 credit</span>
+                        <span className="text-xs text-stone-400 font-normal">USD cost per 1 credit</span>
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
@@ -434,7 +434,7 @@ export default function SettingsPage() {
 
                 {/* Submit Actions */}
                 <div className="flex items-center justify-between pt-4 border-t border-stone-100">
-                  <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
+                  <div className="text-xs text-stone-500 flex items-center gap-1.5">
                     <Database className="w-3.5 h-3.5 text-amber-700" />
                     <span>Values are written directly to PostgreSQL and take effect immediately.</span>
                   </div>
@@ -517,7 +517,7 @@ export default function SettingsPage() {
                   <p className="font-semibold">Public Shareable Link:</p>
                   <p
                     suppressHydrationWarning
-                    className="font-mono text-[11px] text-amber-800 break-all select-all mt-0.5"
+                    className="font-mono text-xs text-amber-800 break-all select-all mt-0.5"
                   >
                     {storeUrl}
                   </p>
@@ -563,7 +563,7 @@ export default function SettingsPage() {
                       <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
                       Merchant WhatsApp Number
                     </span>
-                    <span className="text-[10px] text-stone-400 font-normal">For direct customer orders</span>
+                    <span className="text-xs text-stone-400 font-normal">For direct customer orders</span>
                   </label>
                   <Input
                     type="text"
@@ -573,7 +573,7 @@ export default function SettingsPage() {
                     className="h-9 text-xs font-mono"
                     required
                   />
-                  <p className="text-[11px] text-stone-500">
+                  <p className="text-xs text-stone-500">
                     Customers clicking &ldquo;Order on WhatsApp&rdquo; will send specific product name, price, and 3D link directly to this number.
                   </p>
                 </div>
@@ -588,7 +588,7 @@ export default function SettingsPage() {
                     className="h-9 text-xs"
                     required
                   />
-                  <p className="text-[11px] text-stone-500">
+                  <p className="text-xs text-stone-500">
                     Official email displayed on invoices and merchant communications.
                   </p>
                 </div>
@@ -612,7 +612,7 @@ export default function SettingsPage() {
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     placeholder="Brief description of your woodworking craftsmanship..."
-                    className="text-xs min-h-[72px]"
+                    className="text-xs min-h-18"
                   />
                 </div>
               </div>
@@ -687,11 +687,11 @@ export default function SettingsPage() {
                         ? "processing"
                         : "secondary"
                     }
-                    className="text-[10px] uppercase font-bold"
+                    className="text-xs uppercase font-bold"
                   >
                     Role: {role.replace("_", " ")}
                   </Badge>
-                  <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                  <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
                     <UserCheck className="h-3 w-3" /> Active Session
                   </span>
                 </div>

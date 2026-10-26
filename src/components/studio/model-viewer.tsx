@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { worldUnitsPerCm } from "@/lib/scenes/scale";
 import type { ViewerContext } from "./viewer-context";
 import { BackdropMenu } from "./backdrop-menu";
+import { disposeModel } from "./scene/item-loader";
 import {
   applyBackdrop,
   disposeBackdrop,
@@ -138,7 +139,9 @@ export function ModelViewer({
     // 4. Photorealistic Neutral Studio Environment (Khronos RoomEnvironment IBL)
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
-    const envTexture = pmremGenerator.fromScene(new RoomEnvironment()).texture;
+    const roomEnvironment = new RoomEnvironment();
+    const envTexture = pmremGenerator.fromScene(roomEnvironment).texture;
+    roomEnvironment.dispose();
     scene.environment = envTexture;
 
     // 5. Balanced Studio Lighting (Crafted to reveal textures & subtle shading on bright/white objects)
@@ -311,16 +314,16 @@ export function ModelViewer({
     };
     animate();
 
-    // 8. Resize Handler
-    const handleResize = () => {
-      if (!container) return;
+    // 8. Resize with the container, not just the window, so sidebar and panel changes do not stretch the canvas
+    const resizeObserver = new ResizeObserver(() => {
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (!w || !h) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-    };
-    window.addEventListener("resize", handleResize);
+    });
+    resizeObserver.observe(container);
 
     // 9. Cleanup
     return () => {
@@ -328,11 +331,14 @@ export function ModelViewer({
       readyCleanupRef.current?.();
       readyCleanupRef.current = null;
       setViewerContext(null);
-      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
 
       controls.dispose();
+      groundGeo.dispose();
+      groundMat.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       dracoLoader.dispose();
       pmremGenerator.dispose();
       envTexture.dispose();
@@ -340,19 +346,7 @@ export function ModelViewer({
       sceneRef.current = null;
       rendererRef.current = null;
 
-      if (currentModel) {
-        currentModel.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.geometry?.dispose();
-            if (Array.isArray(mesh.material)) {
-              mesh.material.forEach((mat) => mat.dispose());
-            } else if (mesh.material) {
-              mesh.material.dispose();
-            }
-          }
-        });
-      }
+      if (currentModel) disposeModel(currentModel);
 
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -460,7 +454,7 @@ export function ModelViewer({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[550px] flex flex-col rounded-2xl overflow-hidden border border-stone-200/90 bg-white shadow-sm">
+    <div className="relative w-full h-full min-h-140 flex flex-col rounded-2xl overflow-hidden border border-stone-200/90 bg-white shadow-sm">
       {/* 3D Canvas Viewport */}
       <div
         ref={mountRef}

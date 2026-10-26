@@ -21,7 +21,7 @@ interface AdminUserRow {
 }
 
 export default function AdminAssetsPage() {
-  const { user, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
+  const { user, isSaasAdmin, isLoading: authLoading, demoMode, switchDemoRole } = useAuth();
   const [assets, setAssets] = useState<RoomAsset[]>([]);
   const [categories, setCategories] = useState<AssetCategory[]>([]);
   const [merchants, setMerchants] = useState<MerchantOption[]>([]);
@@ -76,6 +76,14 @@ export default function AdminAssetsPage() {
       ignore = true;
     };
   }, [isSaasAdmin, fetchAll, apply]);
+
+  if (authLoading) {
+    return (
+      <DashboardLayout title="Room Assets">
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </DashboardLayout>
+    );
+  }
 
   if (!isSaasAdmin) {
     return (

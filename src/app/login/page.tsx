@@ -71,7 +71,7 @@ export default function LoginPage() {
               <Sparkles className="h-5 w-5 text-amber-400" />
             </div>
             <span className="font-bold text-xl text-stone-900 tracking-tight font-display">
-              Artisan 3D Studio
+              Artisan 3D
             </span>
           </Link>
           <p className="text-xs text-stone-500">
@@ -84,9 +84,9 @@ export default function LoginPage() {
           <CardHeader className="pb-2 pt-4 px-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-xs uppercase tracking-wider font-bold text-amber-900">
-                ⚡ 1-Click Persona Login
+                1-Click Persona Login
               </CardTitle>
-              <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-800">
+              <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
                 Instant RBAC Demo
               </Badge>
             </div>
@@ -107,7 +107,7 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-stone-900">SaaS Admin (Superuser)</p>
-                  <p className="text-[10px] text-stone-500">RBAC Management, User Roles, Global Audit</p>
+                  <p className="text-xs text-stone-500">RBAC Management, User Roles, Global Audit</p>
                 </div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -125,7 +125,7 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-stone-900">Furniture Merchant</p>
-                  <p className="text-[10px] text-stone-500">Upload 4-Angles, Generate 3D, Download GLB</p>
+                  <p className="text-xs text-stone-500">Upload 4-Angles, Generate 3D, Download GLB</p>
                 </div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-stone-900">Customer Account</p>
-                  <p className="text-[10px] text-stone-500">Explore Catalog & WebGL 3D Viewer (View Only)</p>
+                  <p className="text-xs text-stone-500">Explore Catalog & WebGL 3D Viewer (View Only)</p>
                 </div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-stone-400 group-hover:translate-x-0.5 transition-transform" />
@@ -196,8 +196,9 @@ export default function LoginPage() {
 
               {mode === "register" && (
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-stone-700">Full Name</label>
+                  <label htmlFor="login-name" className="text-xs font-semibold text-stone-700">Full Name</label>
                   <input
+                    id="login-name"
                     type="text"
                     required
                     value={name}
@@ -209,8 +210,9 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-stone-700">Email Address</label>
+                <label htmlFor="login-email" className="text-xs font-semibold text-stone-700">Email Address</label>
                 <input
+                  id="login-email"
                   type="email"
                   required
                   value={email}
@@ -221,8 +223,9 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-stone-700">Password</label>
+                <label htmlFor="login-password" className="text-xs font-semibold text-stone-700">Password</label>
                 <input
+                  id="login-password"
                   type="password"
                   required
                   value={password}
@@ -234,8 +237,9 @@ export default function LoginPage() {
 
               {mode === "register" && (
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-stone-700">Initial Role</label>
+                  <label htmlFor="login-role" className="text-xs font-semibold text-stone-700">Initial Role</label>
                   <select
+                    id="login-role"
                     value={selectedRole}
                     onChange={(e) =>
                       setSelectedRole(e.target.value as "merchant" | "customer")

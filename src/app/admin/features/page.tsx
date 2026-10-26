@@ -21,7 +21,7 @@ interface FeatureEntry extends FeatureDefinition {
 const GROUP_ORDER: FeatureGroup[] = ["Models", "Room studio", "Viewer", "Shopping"];
 
 export default function AdminFeaturesPage() {
-  const { user, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
+  const { user, isSaasAdmin, isLoading: authLoading, demoMode, switchDemoRole } = useAuth();
   const { refresh } = useFeatures();
   const [features, setFeatures] = useState<FeatureEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +70,14 @@ export default function AdminFeaturesPage() {
     },
     [refresh]
   );
+
+  if (authLoading) {
+    return (
+      <DashboardLayout title="Features">
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </DashboardLayout>
+    );
+  }
 
   if (!isSaasAdmin) {
     return (

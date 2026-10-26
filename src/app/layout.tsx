@@ -13,7 +13,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Merchant 3D Studio — Multi-Angle to 3D Generation",
+  title: "Artisan 3D — Photos to 3D Furniture Models",
   description: "A minimal, precision 3D studio for furniture merchants. Transform 4-angle product photos into realistic interactive 3D GLB models.",
 };
 

@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveProductImageToIDB } from "@/lib/storage/indexeddb-storage";
 import { useAuth } from "@/lib/auth/auth-context";
-import { useFeature } from "@/lib/features/features-context";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useFeature, useFeatures } from "@/lib/features/features-context";
 import { featureOffMessage } from "@/lib/features/catalog";
 import { ShieldAlert, Store } from "lucide-react";
 
@@ -73,6 +74,7 @@ export default function CreateProductPage() {
   const router = useRouter();
   const { isCustomer, demoMode, switchDemoRole } = useAuth();
   const generationOn = useFeature("model_generation");
+  const { loaded: featuresLoaded } = useFeatures();
 
   // Form State
   const [name, setName] = useState("");
@@ -285,6 +287,14 @@ export default function CreateProductPage() {
     }
   };
 
+  if (!featuresLoaded) {
+    return (
+      <DashboardLayout title="Create 3D Model" subtitle="Loading">
+        <Skeleton className="mx-auto my-12 h-64 w-full max-w-lg" />
+      </DashboardLayout>
+    );
+  }
+
   if (!generationOn) {
     return (
       <DashboardLayout
@@ -473,7 +483,7 @@ export default function CreateProductPage() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-stone-500">Width ({dimensionUnit})</span>
+                  <span className="text-xs font-medium text-stone-500">Width ({dimensionUnit})</span>
                   <Input
                     type="number"
                     min="1"
@@ -485,7 +495,7 @@ export default function CreateProductPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-stone-500">Depth ({dimensionUnit})</span>
+                  <span className="text-xs font-medium text-stone-500">Depth ({dimensionUnit})</span>
                   <Input
                     type="number"
                     min="1"
@@ -497,7 +507,7 @@ export default function CreateProductPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-stone-500">Height ({dimensionUnit})</span>
+                  <span className="text-xs font-medium text-stone-500">Height ({dimensionUnit})</span>
                   <Input
                     type="number"
                     min="1"
@@ -677,7 +687,7 @@ export default function CreateProductPage() {
                     />
                   )}
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-600">
                   Primary Photo (Image to 3D)
                 </span>
               </div>
@@ -695,7 +705,7 @@ export default function CreateProductPage() {
                         />
                       )}
                     </div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                    <span className="text-xs font-bold uppercase tracking-wider text-stone-600">
                       {v}
                     </span>
                   </div>
@@ -706,27 +716,27 @@ export default function CreateProductPage() {
             {/* Specs Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-stone-200/80 bg-stone-50/70 text-xs">
               <div>
-                <span className="text-stone-400 block text-[11px]">Product</span>
+                <span className="text-stone-400 block text-xs">Product</span>
                 <span className="font-bold text-stone-800">{name}</span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">Pipeline Mode</span>
+                <span className="text-stone-400 block text-xs">Pipeline Mode</span>
                 <span className="font-bold text-amber-800">
                   {generationMode === "image_to_3d" ? "Image to 3D" : "Multi Image to 3D"}
                 </span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">Category</span>
+                <span className="text-stone-400 block text-xs">Category</span>
                 <span className="font-bold text-stone-800">{category}</span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">Dimensions</span>
+                <span className="text-stone-400 block text-xs">Dimensions</span>
                 <span className="font-bold text-stone-800">
                   {widthMm / 10} × {depthMm / 10} × {heightMm / 10} cm
                 </span>
               </div>
               <div>
-                <span className="text-stone-400 block text-[11px]">Texture Map</span>
+                <span className="text-stone-400 block text-xs">Texture Map</span>
                 <span className="font-bold text-stone-800">2K Resolution</span>
               </div>
               <div>
@@ -752,7 +762,7 @@ export default function CreateProductPage() {
               <Button
                 onClick={handleConfirmAndGenerate}
                 disabled={submitting}
-                className="gap-2 min-w-[170px] bg-stone-900 hover:bg-stone-800 text-white font-bold shadow-xs"
+                className="gap-2 min-w-44 bg-stone-900 hover:bg-stone-800 text-white font-bold shadow-xs"
               >
                 {submitting ? (
                   <>
@@ -825,7 +835,7 @@ function DropzoneSlot({
         )}
       </div>
 
-      <div className="p-4 flex-1 flex flex-col items-center justify-center min-h-[170px]">
+      <div className="p-4 flex-1 flex flex-col items-center justify-center min-h-44">
         {slot.previewUrl ? (
           <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-stone-200 bg-stone-100 group shadow-2xs">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -867,7 +877,7 @@ function DropzoneSlot({
               <p className="text-xs font-bold text-stone-800">
                 Click or drag image
               </p>
-              <p className="text-[10px] text-stone-400 mt-0.5">
+              <p className="text-xs text-stone-400 mt-0.5">
                 PNG, JPG, WebP up to 10MB
               </p>
             </div>
@@ -875,7 +885,7 @@ function DropzoneSlot({
         )}
       </div>
 
-      <div className="p-3 bg-stone-50/80 border-t border-stone-100 text-[11px] text-stone-500 text-center font-medium">
+      <div className="p-3 bg-stone-50/80 border-t border-stone-100 text-xs text-stone-500 text-center font-medium">
         {slot.description}
       </div>
     </Card>

@@ -58,6 +58,8 @@ export function useFeatures(): FeaturesContextValue {
   return useContext(FeaturesContext);
 }
 
+// Off until the real flags arrive so disabled features never flash on screen
 export function useFeature(key: FeatureKey): boolean {
-  return useContext(FeaturesContext).flags[key];
+  const { flags, loaded } = useContext(FeaturesContext);
+  return loaded && flags[key];
 }

@@ -134,7 +134,8 @@ describe("validateSceneSave", () => {
   const plant = makeAsset("plant");
   const proLamp = makeAsset("lamp", { accessLevel: "pro" });
   const frame = makeAsset("frame", { placement: "wall" });
-  const versions = versionsFor(plant, proLamp, frame);
+  const retired = makeAsset("retired", { hidden: true });
+  const versions = versionsFor(plant, proLamp, frame, retired);
   const plantItem = (id: string) => item(0, { id, assetId: "plant", versionId: "ver-plant" });
   const lampItem = (id: string) => item(0, { id, assetId: "lamp", versionId: "ver-lamp" });
 
@@ -154,6 +155,16 @@ describe("validateSceneSave", () => {
   it("rejects an asset id that does not match the version's asset with 400", () => {
     const result = save([item(0, { id: "a", assetId: "lamp", versionId: "ver-plant" })], null);
     expect(result).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("rejects placing a hidden asset as a new item", () => {
+    const result = save([item(0, { id: "a", assetId: "retired", versionId: "ver-retired" })], null);
+    expect(result).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it("keeps an already saved item whose asset was hidden later", () => {
+    const saved = item(0, { id: "a", assetId: "retired", versionId: "ver-retired" });
+    expect(save([saved], [saved])).toEqual({ ok: true });
   });
 
   it("rejects a new wall item with 400", () => {

@@ -361,7 +361,7 @@ export default function MyProductsPage() {
                               ? "destructive"
                               : "secondary"
                           }
-                          className="shadow-2xs backdrop-blur-md text-[10px]"
+                          className="shadow-2xs backdrop-blur-md text-xs"
                         >
                           {product.status === "completed"
                             ? "3D Ready"
@@ -373,7 +373,7 @@ export default function MyProductsPage() {
                         </Badge>
                       </div>
 
-                      <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md text-stone-900 border border-stone-200/80 text-[11px] px-2.5 py-0.5 rounded-full font-semibold shadow-2xs">
+                      <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md text-stone-900 border border-stone-200/80 text-xs px-2.5 py-0.5 rounded-full font-semibold shadow-2xs">
                         {product.category}
                       </div>
                     </div>
@@ -397,7 +397,7 @@ export default function MyProductsPage() {
 
                       <div className="pt-1 text-xs text-stone-600 flex items-center justify-between border-t border-stone-100">
                         <span>Dimensions</span>
-                        <strong className="text-stone-800 font-mono text-[11px]">
+                        <strong className="text-stone-800 font-mono text-xs">
                           {formatDimension(product.widthMm)} × {formatDimension(product.depthMm)} × {formatDimension(product.heightMm)}
                         </strong>
                       </div>

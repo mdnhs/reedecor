@@ -35,7 +35,7 @@ interface AdminUser {
 }
 
 export default function AdminRbacPage() {
-  const { user: currentUser, isSaasAdmin, demoMode, switchDemoRole } = useAuth();
+  const { user: currentUser, isSaasAdmin, isLoading: authLoading, demoMode, switchDemoRole } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -95,6 +95,7 @@ export default function AdminRbacPage() {
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    if (!confirm(`Change this user's role to ${newRole.replace("_", " ")}?`)) return;
     try {
       const res = await fetch(`/api/admin/users/${userId}/role`, {
         method: "PATCH",
@@ -136,6 +137,7 @@ export default function AdminRbacPage() {
 
   const handleStatusToggle = async (userId: string, currentStatus: UserStatus) => {
     const nextStatus: UserStatus = currentStatus === "active" ? "suspended" : "active";
+    if (nextStatus === "suspended" && !confirm("Suspend this user? They will be signed out of the studio.")) return;
     try {
       const res = await fetch(`/api/admin/users/${userId}/status`, {
         method: "PATCH",
@@ -205,6 +207,14 @@ export default function AdminRbacPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <DashboardLayout title="RBAC Management">
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </DashboardLayout>
+    );
+  }
+
   // If NOT SaaS Admin, display permission restriction guard
   if (!isSaasAdmin) {
     return (
@@ -225,7 +235,7 @@ export default function AdminRbacPage() {
             </h2>
             <p className="text-xs text-stone-600">
               You are currently authenticated as <strong>{currentUser?.name || "User"}</strong> with the role:{" "}
-              <Badge variant="secondary" className="uppercase font-mono text-[10px]">
+              <Badge variant="secondary" className="uppercase font-mono text-xs">
                 {currentUser?.role || "guest"}
               </Badge>
               . Only SaaS Administrators can manage Role-Based Access Control (RBAC).
@@ -466,12 +476,12 @@ export default function AdminRbacPage() {
                                 <div className="font-semibold text-stone-900 flex items-center gap-1.5">
                                   <span>{u.name}</span>
                                   {isSelf && (
-                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
                                       You
                                     </Badge>
                                   )}
                                 </div>
-                                <div className="text-[11px] text-stone-500 font-mono">
+                                <div className="text-xs text-stone-500 font-mono">
                                   {u.email}
                                 </div>
                               </div>
@@ -487,7 +497,7 @@ export default function AdminRbacPage() {
                                   ? "processing"
                                   : "secondary"
                               }
-                              className="capitalize text-[11px] font-semibold"
+                              className="capitalize text-xs font-semibold"
                             >
                               {u.role.replace("_", " ")}
                             </Badge>
@@ -496,7 +506,7 @@ export default function AdminRbacPage() {
                           <td className="py-3">
                             <button
                               onClick={() => handleStatusToggle(u.id, u.status)}
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors ${
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
                                 u.status === "active"
                                   ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                                   : "bg-rose-100 text-rose-800 hover:bg-rose-200"
@@ -515,9 +525,9 @@ export default function AdminRbacPage() {
                               disabled={isSelf}
                               className="px-2.5 py-1 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-1 focus:ring-stone-900 bg-white font-medium text-stone-800 disabled:opacity-50"
                             >
-                              <option value="saas_admin">👑 SaaS Admin</option>
-                              <option value="merchant">🏪 Furniture Merchant</option>
-                              <option value="customer">🛍️ Customer Account</option>
+                              <option value="saas_admin">SaaS Admin</option>
+                              <option value="merchant">Furniture Merchant</option>
+                              <option value="customer">Customer Account</option>
                             </select>
                           </td>
 
@@ -560,10 +570,13 @@ export default function AdminRbacPage() {
 
         {/* Create User Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-            <Card className="w-full max-w-md bg-white border-stone-200 shadow-xl">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs"
+            onKeyDown={(e) => e.key === "Escape" && setShowCreateModal(false)}
+          >
+            <Card role="dialog" aria-modal="true" aria-labelledby="create-user-title" className="w-full max-w-md bg-white border-stone-200 shadow-xl">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold text-stone-900">
+                <CardTitle id="create-user-title" className="text-base font-bold text-stone-900">
                   Add New User Account
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -573,8 +586,10 @@ export default function AdminRbacPage() {
               <CardContent>
                 <form onSubmit={handleCreateUser} className="space-y-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Full Name</label>
+                    <label htmlFor="new-user-name" className="text-xs font-semibold text-stone-700">Full Name</label>
                     <input
+                      id="new-user-name"
+                      autoFocus
                       type="text"
                       required
                       value={newUserName}
@@ -585,8 +600,9 @@ export default function AdminRbacPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Email Address</label>
+                    <label htmlFor="new-user-email" className="text-xs font-semibold text-stone-700">Email Address</label>
                     <input
+                      id="new-user-email"
                       type="email"
                       required
                       value={newUserEmail}
@@ -597,8 +613,9 @@ export default function AdminRbacPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Password</label>
+                    <label htmlFor="new-user-password" className="text-xs font-semibold text-stone-700">Password</label>
                     <input
+                      id="new-user-password"
                       type="password"
                       required
                       value={newUserPassword}
@@ -609,15 +626,16 @@ export default function AdminRbacPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Assigned Role</label>
+                    <label htmlFor="new-user-role" className="text-xs font-semibold text-stone-700">Assigned Role</label>
                     <select
+                      id="new-user-role"
                       value={newUserRole}
                       onChange={(e) => setNewUserRole(e.target.value as UserRole)}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-2 focus:ring-stone-900 bg-stone-50/50"
                     >
-                      <option value="merchant">🏪 Merchant (Upload & Generate 3D)</option>
-                      <option value="customer">🛍️ Customer (View Only)</option>
-                      <option value="saas_admin">👑 SaaS Admin (Full RBAC Privilege)</option>
+                      <option value="merchant">Merchant (Upload & Generate 3D)</option>
+                      <option value="customer">Customer (View Only)</option>
+                      <option value="saas_admin">SaaS Admin (Full RBAC Privilege)</option>
                     </select>
                   </div>
 

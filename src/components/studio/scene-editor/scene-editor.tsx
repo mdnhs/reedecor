@@ -20,6 +20,7 @@ import {
 import { RoomPanel } from "./room-panel";
 import { SelectionToolbar } from "./selection-toolbar";
 import { useMerchantAssets } from "./use-merchant-assets";
+import { shouldHandleSceneKey } from "./keyboard";
 
 const DRAG_TYPE = "application/x-room-asset";
 
@@ -41,11 +42,6 @@ function toPlaceable(asset: MerchantAssetView): PlaceableAsset {
     depthCm: asset.currentVersion.depthCm,
     heightCm: asset.currentVersion.heightCm,
   };
-}
-
-function isTyping(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null;
-  return !!element && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable);
 }
 
 export function SceneEditor({ productId, context, backdrop, initialScene, onSaved, onLoaded }: SceneEditorProps) {
@@ -131,7 +127,7 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isTyping(event.target) || !controllerRef.current) return;
+      if (!shouldHandleSceneKey(event.target) || !controllerRef.current) return;
       if (event.key === "Delete" || event.key === "Backspace") controllerRef.current.removeSelected();
       if (event.key === "Escape") controllerRef.current.select(null);
     };
@@ -150,6 +146,13 @@ export function SceneEditor({ productId, context, backdrop, initialScene, onSave
   const dirty =
     state.dirty || backdrop !== savedBackdrop || (roomOn && !roomsEqual(room, savedRoom));
   const suggestions = useMemo(() => suggestWallColors(context?.productTone ?? null), [context]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const changeMode = (next: EditorMode) => {
     setMode(next);

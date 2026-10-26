@@ -251,7 +251,7 @@ export default function CreditsPage() {
                   <tbody className="divide-y divide-stone-100">
                     {data.history.map((row) => (
                       <tr key={row.id} className="hover:bg-stone-50/50">
-                        <td className="py-3 font-mono text-[11px] text-stone-700">
+                        <td className="py-3 font-mono text-xs text-stone-700">
                           {row.id}
                         </td>
                         <td className="py-3 font-medium text-stone-800">

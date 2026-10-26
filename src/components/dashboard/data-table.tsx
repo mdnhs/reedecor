@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Search, Eye, ChevronLeft, ChevronRight, Box } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { StoredProduct } from "@/server/demo-store";
-import { formatDimension } from "@/lib/utils";
+import { cn, formatDimension } from "@/lib/utils";
 import { getProductThumbnail } from "@/lib/product-thumbnail";
 
 interface DataTableProps {
@@ -49,17 +49,19 @@ export function DataTable({ products }: DataTableProps) {
               <Search className="h-3.5 w-3.5 text-stone-400 absolute left-3 top-2.5" />
               <input
                 type="text"
+                aria-label="Filter furniture"
                 placeholder="Filter furniture..."
                 value={filter}
                 onChange={(e) => {
                   setFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-2 focus:ring-stone-900 bg-stone-50/50 w-[180px] sm:w-[220px]"
+                className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-2 focus:ring-stone-900 bg-stone-50/50 w-44 sm:w-56"
               />
             </div>
 
             <select
+              aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => {
                 setCategoryFilter(e.target.value);
@@ -119,7 +121,7 @@ export function DataTable({ products }: DataTableProps) {
                         </div>
                         <div>
                           <p className="font-semibold text-stone-900">{product.name}</p>
-                          <p className="text-[10px] text-stone-500 font-mono">
+                          <p className="text-xs text-stone-500 font-mono">
                             {product.images.length}/4 angles captured
                           </p>
                         </div>
@@ -150,7 +152,7 @@ export function DataTable({ products }: DataTableProps) {
                             ? "destructive"
                             : "secondary"
                         }
-                        className="text-[10px]"
+                        className="text-xs"
                       >
                         {product.status === "completed"
                           ? "● 3D Ready"
@@ -163,19 +165,21 @@ export function DataTable({ products }: DataTableProps) {
                     </td>
 
                     <td className="py-3 px-4 text-right">
-                      <Link href={`/viewer/${product.id}`}>
-                        <Button
-                          size="sm"
-                          variant={product.status === "completed" ? "default" : "outline"}
-                          className={`gap-1.5 text-xs h-7.5 ${
-                            product.status === "completed"
-                              ? "bg-amber-700 hover:bg-amber-800 text-white shadow-2xs font-semibold"
-                              : "border-stone-200 text-stone-700 hover:bg-stone-100"
-                          }`}
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>{product.status === "completed" ? "3D Studio" : "Inspect"}</span>
-                        </Button>
+                      <Link
+                        href={`/viewer/${product.id}`}
+                        className={cn(
+                          buttonVariants({
+                            size: "sm",
+                            variant: product.status === "completed" ? "default" : "outline",
+                          }),
+                          "gap-1.5 text-xs h-7.5",
+                          product.status === "completed"
+                            ? "bg-amber-700 hover:bg-amber-800 text-white shadow-2xs font-semibold"
+                            : "border-stone-200 text-stone-700 hover:bg-stone-100"
+                        )}
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>{product.status === "completed" ? "3D Studio" : "Inspect"}</span>
                       </Link>
                     </td>
                   </tr>
@@ -197,6 +201,7 @@ export function DataTable({ products }: DataTableProps) {
               variant="outline"
               size="sm"
               disabled={currentPage <= 1}
+              aria-label="Previous page"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               className="h-7 w-7 p-0"
             >
@@ -209,6 +214,7 @@ export function DataTable({ products }: DataTableProps) {
               variant="outline"
               size="sm"
               disabled={currentPage >= totalPages}
+              aria-label="Next page"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               className="h-7 w-7 p-0"
             >

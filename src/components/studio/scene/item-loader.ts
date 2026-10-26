@@ -118,7 +118,7 @@ export function disposeGroup(group: THREE.Object3D): void {
   });
 }
 
-function disposeModel(root: THREE.Object3D): void {
+export function disposeModel(root: THREE.Object3D): void {
   root.traverse((child) => {
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh) return;

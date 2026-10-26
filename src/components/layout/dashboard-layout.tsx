@@ -144,7 +144,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
   }, [isLoading, user, router, pathname]);
 
   return (
-    <div className="h-screen w-full flex gap-3 p-2 sm:p-3 text-stone-900 antialiased font-sans overflow-hidden">
+    <div className="h-dvh w-full flex gap-3 p-2 sm:p-3 text-stone-900 antialiased font-sans overflow-hidden">
       <aside
         className={cn(
           "glass-panel hidden md:flex flex-col justify-between shrink-0 rounded-3xl p-3 transition-all duration-200 ease-in-out",
@@ -208,7 +208,7 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{user?.name || "Merchant"}</p>
-                  <p className="text-xs text-stone-500 truncate">{user?.email || "demo@artisan.studio"}</p>
+                  <p className="text-xs text-stone-500 truncate">{user?.email}</p>
                 </div>
                 <button
                   onClick={logout}

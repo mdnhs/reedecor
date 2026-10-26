@@ -21,6 +21,9 @@ export function validateSceneSave(args: {
     }
     if (savedKeys.has(`${item.id}:${item.versionId}`)) continue;
 
+    if (found.asset.hidden) {
+      return { ok: false, error: `"${found.asset.name}" is no longer available.`, status: 403 };
+    }
     if (found.asset.placement === "wall") {
       return {
         ok: false,

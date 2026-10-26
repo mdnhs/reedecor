@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ModelViewer } from "@/components/studio/model-viewer";
 import { SceneEditor } from "@/components/studio/scene-editor/scene-editor";
 import { SceneView } from "@/components/studio/scene/scene-view";
-import { useFeature } from "@/lib/features/features-context";
+import { useFeature, useFeatures } from "@/lib/features/features-context";
 import type { BackdropMode } from "@/components/studio/backdrop";
 import { EMPTY_SCENE, type ResolvedScene } from "@/lib/scenes/types";
 import { StoredProduct } from "@/server/demo-store";
@@ -42,6 +42,7 @@ const EMPTY_SCENE_RESOLVED: ResolvedScene = { ...EMPTY_SCENE, items: [] };
 function ViewerContent({ id }: { id: string }) {
   const { user, isCustomer, isSaasAdmin, isLoading: authLoading } = useAuth();
   const generationOn = useFeature("model_generation");
+  const { loaded: featuresLoaded } = useFeatures();
   const sceneEditorOn = useFeature("scene_editor");
   const captureOn = useFeature("capture_thumbnails");
   const backdropOn = useFeature("backdrop_menu");
@@ -329,8 +330,8 @@ function ViewerContent({ id }: { id: string }) {
         <div className="space-y-6">
           <Skeleton className="h-8 w-48" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Skeleton className="lg:col-span-2 h-[550px] rounded-xl" />
-            <Skeleton className="h-[550px] rounded-xl" />
+            <Skeleton className="lg:col-span-2 h-140 rounded-xl" />
+            <Skeleton className="h-140 rounded-xl" />
           </div>
         </div>
       </DashboardLayout>
@@ -426,8 +427,8 @@ function ViewerContent({ id }: { id: string }) {
         {/* Studio Main Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div className="lg:col-span-2 space-y-4">
-            {product.status === "completed" && modelUrl && (authLoading || !sceneLoaded) ? (
-              <Skeleton className="h-[550px] w-full" />
+            {product.status === "completed" && modelUrl && (authLoading || !sceneLoaded || !featuresLoaded) ? (
+              <Skeleton className="h-140 w-full" />
             ) : product.status === "completed" && modelUrl ? (
               <div className="w-full space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -496,7 +497,7 @@ function ViewerContent({ id }: { id: string }) {
                 </div>
               </div>
             ) : product.status === "processing" ? (
-              <Card className="h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 border-amber-300">
+              <Card className="h-140 flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 border-amber-300">
                 <div className="max-w-md space-y-5">
                   <div className="h-16 w-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
                     <Sparkles className="h-8 w-8 animate-spin" />
@@ -523,7 +524,7 @@ function ViewerContent({ id }: { id: string }) {
                       style={{ width: `${Math.max(15, pollingProgress)}%` }}
                     />
                   </div>
-                  <p className="text-[11px] font-mono text-stone-400">
+                  <p className="text-xs font-mono text-stone-400">
                     Task Status: IN_PROGRESS (~{pollingProgress}% completed)
                   </p>
 
@@ -540,7 +541,7 @@ function ViewerContent({ id }: { id: string }) {
                         <XCircle className={`h-4 w-4 ${cancelling ? "animate-spin" : "text-rose-600"}`} />
                         <span>{cancelling ? "Cancelling..." : "Cancel Generation"}</span>
                       </Button>
-                      <p className="text-[11px] text-stone-400">
+                      <p className="text-xs text-stone-400">
                         Stuck or submitted by mistake? Click to cancel and restart anytime.
                       </p>
                     </div>
@@ -548,7 +549,7 @@ function ViewerContent({ id }: { id: string }) {
                 </div>
               </Card>
             ) : product.status === "failed" ? (
-              <Card className={`h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 ${
+              <Card className={`h-140 flex flex-col items-center justify-center p-8 text-center bg-white border-dashed border-2 ${
                 isCancelled ? "border-stone-300" : "border-rose-300"
               }`}>
                 <div className="max-w-md space-y-4">
@@ -594,7 +595,7 @@ function ViewerContent({ id }: { id: string }) {
                 </div>
               </Card>
             ) : (
-              <Card className="h-[550px] flex flex-col items-center justify-center p-8 text-center bg-white">
+              <Card className="h-140 flex flex-col items-center justify-center p-8 text-center bg-white">
                 <div className="max-w-md space-y-4">
                   <div className="h-14 w-14 rounded-2xl bg-stone-100 text-stone-600 mx-auto flex items-center justify-center">
                     <Box className="h-7 w-7" />
@@ -640,7 +641,7 @@ function ViewerContent({ id }: { id: string }) {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <span className="text-[10px] font-semibold uppercase text-stone-600">
+                      <span className="text-xs font-semibold uppercase text-stone-600">
                         {img.viewType} view
                       </span>
                     </div>
@@ -649,11 +650,11 @@ function ViewerContent({ id }: { id: string }) {
 
                 {product.images.length === 1 && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 space-y-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-amber-950 text-[11px]">
+                    <div className="flex items-center gap-1.5 font-semibold text-amber-950 text-xs">
                       <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                       <span>Single-Photo Quality Notice</span>
                     </div>
-                    <p className="text-[11px] leading-relaxed text-amber-800">
+                    <p className="text-xs leading-relaxed text-amber-800">
                       ১টি ছবি থেকে তৈরি হওয়ায় AI পেছনের অংশ অনুমান করে এবং সূক্ষ্ম টেক্সচার (যেমন ক্রোকোডাইল লেদার বা খোদাই) স্মুথ করে ফেলে। আসল চামড়ার টেক্সচার ও সঠিক কার্ভ পেতে ৪টি অ্যাঙ্গেল (Front, Back, Left, Right) আই-লেভেলে ছবি তুলে জেনারেট করুন।
                     </p>
                   </div>
@@ -712,11 +713,11 @@ function ViewerContent({ id }: { id: string }) {
                       <MessageCircle className="w-4 h-4 text-[#25D366]" />
                       <h4 className="text-xs font-bold text-emerald-900">Order via WhatsApp</h4>
                     </div>
-                    <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-xs text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-medium">
                       Direct to Merchant
                     </span>
                   </div>
-                  <p className="text-[11px] text-stone-600 leading-relaxed">
+                  <p className="text-xs text-stone-600 leading-relaxed">
                     Connect directly with the merchant with pre-filled dimensions, purchase price, and 3D preview link.
                   </p>
                 </>
@@ -756,7 +757,7 @@ function ViewerContent({ id }: { id: string }) {
               <Link
                 href={`/store/${product.merchantId}`}
                 target="_blank"
-                className="inline-flex items-center gap-1.5 text-[11px] text-stone-600 hover:text-stone-900 font-medium transition-colors pt-1"
+                className="inline-flex items-center gap-1.5 text-xs text-stone-600 hover:text-stone-900 font-medium transition-colors pt-1"
               >
                 <Store className="w-3.5 h-3.5 text-amber-700" />
                 <span>Visit Merchant Storefront</span>
@@ -782,7 +783,7 @@ export default function ProductViewerPage({
         <DashboardLayout title="3D Studio Viewer">
           <div className="space-y-6">
             <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-[550px] w-full rounded-xl" />
+            <Skeleton className="h-140 w-full rounded-xl" />
           </div>
         </DashboardLayout>
       }
