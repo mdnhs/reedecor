@@ -2,29 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FormSkeleton } from "@/components/ui/skeleton-patterns";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth/auth-context";
-import {
-  Database,
-  Cpu,
-  ShieldCheck,
-  UserCheck,
-  MessageCircle,
-  Share2,
-  ExternalLink,
-  Check,
-  Store,
-  Sparkles,
-  Eye,
-  EyeOff,
-  Sliders,
-  DollarSign,
-} from "lucide-react";
+import { ShieldCheck, Share2, ExternalLink, Check, Eye, EyeOff, AlertCircle, Store, User, Cpu } from "lucide-react";
 import Link from "next/link";
 import { useOrigin } from "@/lib/hooks/use-origin";
 
@@ -210,519 +194,331 @@ export default function SettingsPage() {
     }
   }
 
+  const selectClass =
+    "h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900";
+
   return (
     <DashboardLayout
-      title="Studio & Platform Settings"
-      subtitle="Manage merchant storefront, WhatsApp contact, and SaaS platform configurations"
+      title="Settings"
+      subtitle="Store, account, platform"
     >
-      <div className="max-w-4xl space-y-6">
-        {/* ================================================================= */}
-        {/* 1. SaaS Admin Platform Configuration (Database Stored)           */}
-        {/* ================================================================= */}
-        {isSaasAdmin ? (
-          <Card className="border-amber-200/90 bg-white shadow-xs overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent px-6 py-4 border-b border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-amber-700 text-white flex items-center justify-center shadow-xs">
-                  <Sliders className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-sm font-bold text-stone-900">
-                      SaaS Admin Platform Configuration (Database Stored)
-                    </CardTitle>
-                    <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-bold">
-                      Supabase DB Live
-                    </Badge>
-                  </div>
-                  <CardDescription className="text-xs text-stone-600 mt-0.5">
-                    Configure Meshy AI keys, model settings, and economics rates stored in PostgreSQL
-                  </CardDescription>
-                </div>
-              </div>
+      <div className="mx-auto max-w-3xl space-y-12 pb-12">
+        <form onSubmit={handleSaveMerchantSettings} className="space-y-6">
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold text-stone-900">
+            <Store className="h-5 w-5 text-amber-600" />
+            Store
+          </h2>
 
-              <div className="flex items-center gap-2">
-                <Badge variant="success" className="gap-1 text-xs">
-                  <Database className="w-3 h-3" />
-                  <span>public.system_settings</span>
-                </Badge>
-              </div>
+          <div className="glass-panel studio-card-shadow flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p suppressHydrationWarning className="break-all font-mono text-xs text-stone-600 select-all">
+                {storeUrl}
+              </p>
             </div>
-
-            <CardContent className="p-6">
-              {adminSettingsError && (
-                <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                  <span>{adminSettingsError}</span>
-                  {!adminSettingsLoaded && (
-                    <Button type="button" size="sm" variant="outline" onClick={() => setAdminReloadKey((k) => k + 1)}>
-                      Try again
-                    </Button>
-                  )}
-                </div>
-              )}
-              {!adminSettingsLoaded && !adminSettingsError ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-2/3" />
-                </div>
-              ) : (
-              <form onSubmit={handleSaveAdminSettings} className="space-y-6">
-                {/* Section A: Meshy AI Multi-Image API Settings */}
-                <div className="space-y-3.5">
-                  <div className="flex items-center gap-2 pb-1 border-b border-stone-100">
-                    <Cpu className="h-4 w-4 text-amber-700" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-800">
-                      Meshy AI Multi-Image to 3D API
-                    </h4>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                      <span>MESHY_API_KEY <span className="text-rose-500">*</span></span>
-                      <span className="text-xs text-stone-400 font-mono">Secret Key for 3D generation</span>
-                    </label>
-                    <div className="relative">
-                      <Input
-                        type={showApiKey ? "text" : "password"}
-                        value={meshyApiKey}
-                        onChange={(e) => setMeshyApiKey(e.target.value)}
-                        placeholder="your_meshy_api_key_here"
-                        className="h-9 text-xs font-mono pr-10 bg-stone-50/50"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
-                        title={showApiKey ? "Hide Key" : "Show Key"}
-                      >
-                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700">
-                        MESHY_API_BASE_URL
-                      </label>
-                      <Input
-                        type="url"
-                        value={meshyApiBaseUrl}
-                        onChange={(e) => setMeshyApiBaseUrl(e.target.value)}
-                        placeholder="https://api.meshy.ai"
-                        className="h-9 text-xs font-mono"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700">
-                        MESHY_MODEL
-                      </label>
-                      <Input
-                        type="text"
-                        value={meshyModel}
-                        onChange={(e) => setMeshyModel(e.target.value)}
-                        placeholder="meshy-7.1"
-                        className="h-9 text-xs font-mono"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700">
-                        GEOMETRY_RESOLUTION
-                      </label>
-                      <select
-                        value={meshyGeometryResolution}
-                        onChange={(e) => setMeshyGeometryResolution(e.target.value)}
-                        className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
-                      >
-                        <option value="standard">standard (Optimized WebGL)</option>
-                        <option value="high_poly">high_poly (Ultra Details)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700">
-                        TEXTURE_RESOLUTION
-                      </label>
-                      <select
-                        value={meshyTextureResolution}
-                        onChange={(e) => setMeshyTextureResolution(e.target.value)}
-                        className="w-full h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-medium text-stone-800 focus:outline-hidden focus:ring-1 focus:ring-stone-900"
-                      >
-                        <option value="1k">1k (Fast Preview)</option>
-                        <option value="2k">2k (Standard PBR)</option>
-                        <option value="4k">4k (Ultra High Res)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700">
-                        CREDITS_PER_GENERATION
-                      </label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={meshyCreditsPerGeneration}
-                        onChange={(e) => setMeshyCreditsPerGeneration(e.target.value)}
-                        className="h-9 text-xs font-mono"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section B: Economics & Currency Rates */}
-                <div className="space-y-3.5 pt-2">
-                  <div className="flex items-center gap-2 pb-1 border-b border-stone-100">
-                    <DollarSign className="h-4 w-4 text-emerald-700" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-800">
-                      Economics & Currency Rates
-                    </h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                        <span>USD_TO_BDT_RATE</span>
-                        <span className="text-xs text-stone-400 font-normal">BDT per 1 USD</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
-                          ৳
-                        </span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="1"
-                          value={usdToBdtRate}
-                          onChange={(e) => setUsdToBdtRate(e.target.value)}
-                          className="h-9 text-xs font-mono font-bold pl-7"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-stone-700 flex items-center justify-between">
-                        <span>COST_PER_CREDIT_USD</span>
-                        <span className="text-xs text-stone-400 font-normal">USD cost per 1 credit</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">
-                          $
-                        </span>
-                        <Input
-                          type="number"
-                          step="0.001"
-                          min="0.001"
-                          value={costPerCreditUsd}
-                          onChange={(e) => setCostPerCreditUsd(e.target.value)}
-                          className="h-9 text-xs font-mono font-bold pl-7"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Submit Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-stone-100">
-                  <div className="text-xs text-stone-500 flex items-center gap-1.5">
-                    <Database className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Values are written directly to PostgreSQL and take effect immediately.</span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {adminSettingsSaved && (
-                      <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" /> Settings saved to Database!
-                      </span>
-                    )}
-
-                    <Button
-                      type="submit"
-                      disabled={savingAdminSettings || !adminSettingsLoaded}
-                      className="bg-amber-700 hover:bg-amber-800 text-white text-xs h-9 px-5 shadow-xs font-semibold"
-                    >
-                      {savingAdminSettings ? "Saving to DB..." : "Save Platform Configuration"}
-                    </Button>
-                  </div>
-                </div>
-              </form>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {/* ================================================================= */}
-        {/* 2. Merchant Public Profile & WhatsApp Settings                    */}
-        {/* ================================================================= */}
-        <Card className="border-stone-200/80 bg-white">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Store className="w-4 h-4 text-amber-700" />
-                  <CardTitle className="text-sm font-semibold text-stone-900">
-                    Merchant Public Profile & WhatsApp Integration
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-xs mt-1">
-                  Share your 3D furniture showcase with customers and receive direct WhatsApp purchase orders
-                </CardDescription>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopyStoreLink}
-                  className="h-8 gap-1.5 text-xs border-stone-300 text-stone-700"
-                >
-                  {copiedStoreLink ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-emerald-700 font-medium">Link Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Share Storefront Link</span>
-                    </>
-                  )}
+            <div className="flex shrink-0 gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={handleCopyStoreLink} className="gap-1.5">
+                {copiedStoreLink ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                <span>{copiedStoreLink ? "Copied" : "Copy"}</span>
+              </Button>
+              <Link href={`/store/${merchantStoreId}`} target="_blank">
+                <Button type="button" size="sm" variant="outline" className="gap-1.5">
+                  <ExternalLink className="h-4 w-4" />
+                  <span>View</span>
                 </Button>
-
-                <Link href={`/store/${merchantStoreId}`} target="_blank">
-                  <Button size="sm" className="h-8 gap-1.5 text-xs bg-stone-900 text-white hover:bg-stone-800">
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>View Public Store</span>
-                  </Button>
-                </Link>
-              </div>
+              </Link>
             </div>
-          </CardHeader>
+          </div>
 
-          <CardContent>
-            <form onSubmit={handleSaveMerchantSettings} className="space-y-4">
-              <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Public Shareable Link:</p>
-                  <p
-                    suppressHydrationWarning
-                    className="font-mono text-xs text-amber-800 break-all select-all mt-0.5"
-                  >
-                    {storeUrl}
-                  </p>
-                </div>
-              </div>
-
-              {merchantError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
-                  <span className="font-semibold">Error:</span> {merchantError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700">Business / Studio Name</label>
-                  <Input
-                    type="text"
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
-                    placeholder="e.g. Artisan Living Dhaka"
-                    className="h-9 text-xs"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700">Owner / Representative Name</label>
-                  <Input
-                    type="text"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    placeholder="e.g. Luxury Oak Merchant"
-                    className="h-9 text-xs"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
-                      Merchant WhatsApp Number
-                    </span>
-                    <span className="text-xs text-stone-400 font-normal">For direct customer orders</span>
-                  </label>
-                  <Input
-                    type="text"
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="e.g. 01865818044"
-                    className="h-9 text-xs font-mono"
-                    required
-                  />
-                  <p className="text-xs text-stone-500">
-                    Customers clicking &ldquo;Order on WhatsApp&rdquo; will send specific product name, price, and 3D link directly to this number.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700">Business / Contact Email</label>
-                  <Input
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="e.g. merchant@artisanstudio.com"
-                    className="h-9 text-xs"
-                    required
-                  />
-                  <p className="text-xs text-stone-500">
-                    Official email displayed on invoices and merchant communications.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700">Studio / Showroom Location</label>
-                  <Input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. Gulshan-2, Dhaka, Bangladesh"
-                    className="h-9 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-700">Storefront Bio / Tagline</label>
-                  <Textarea
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Brief description of your woodworking craftsmanship..."
-                    className="text-xs min-h-18"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-stone-100">
-                {merchantSavedSuccess && (
-                  <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> Changes saved to Supabase!
-                  </span>
-                )}
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={savingMerchant}
-                  className="bg-amber-700 hover:bg-amber-800 text-white text-xs h-9 px-4"
-                >
-                  {savingMerchant ? "Saving Profile..." : "Save Merchant Settings"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* ================================================================= */}
-        {/* 3. User Session Profile Card                                      */}
-        {/* ================================================================= */}
-        <Card className="border-stone-200/80 bg-white">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-semibold text-stone-900">
-                  User Session Profile
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Active authentication credentials and RBAC access tier
-                </CardDescription>
-              </div>
-              {isSaasAdmin && (
-                <Link href="/admin/rbac">
-                  <Button size="sm" variant="outline" className="gap-1.5 text-xs">
-                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
-                    <span>Manage All Users (RBAC)</span>
-                  </Button>
-                </Link>
-              )}
+          {merchantError && (
+            <div role="alert" className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{merchantError}</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div
-                className={`h-12 w-12 rounded-full flex items-center justify-center font-bold text-sm ${
-                  role === "saas_admin"
-                    ? "bg-amber-100 text-amber-900 border border-amber-300"
-                    : role === "merchant"
-                    ? "bg-stone-900 text-stone-50"
-                    : "bg-stone-200 text-stone-700"
-                }`}
-              >
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="business-name" label="Business">
+              <Input
+                id="business-name"
+                type="text"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="e.g. Artisan Living Dhaka"
+                required
+              />
+            </Field>
+            <Field id="contact-name" label="Owner">
+              <Input
+                id="contact-name"
+                type="text"
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="e.g. Luxury Oak Merchant"
+                required
+              />
+            </Field>
+            <Field id="whatsapp-number" label="WhatsApp">
+              <Input
+                id="whatsapp-number"
+                type="text"
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                placeholder="e.g. 01865818044"
+                required
+              />
+            </Field>
+            <Field id="contact-email" label="Email">
+              <Input
+                id="contact-email"
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="e.g. merchant@artisanstudio.com"
+                required
+              />
+            </Field>
+          </div>
+          <Field id="location" label="Location" optional>
+            <Input
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Gulshan-2, Dhaka, Bangladesh"
+            />
+          </Field>
+          <Field id="bio" label="Bio" optional>
+            <Textarea
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Short tagline"
+              className="min-h-20 text-sm"
+            />
+          </Field>
+
+          <div className="flex items-center justify-end gap-3">
+            <span role="status" className="text-sm font-medium text-emerald-700">
+              {merchantSavedSuccess && (
+                <span className="flex items-center gap-1">
+                  <Check className="h-4 w-4" /> Saved
+                </span>
+              )}
+            </span>
+            <Button type="submit" disabled={savingMerchant} className="bg-gradient-brand text-white">
+              {savingMerchant ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </form>
+
+        <section className="space-y-4">
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold text-stone-900">
+            <User className="h-5 w-5 text-amber-600" />
+            Account
+          </h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-sm font-semibold text-stone-700">
                 {user?.name ? user.name.slice(0, 2).toUpperCase() : "U"}
               </div>
-              <div>
-                <h4 className="font-semibold text-stone-900 text-sm">
-                  {user?.name || "Merchant"}
-                </h4>
-                <p className="text-xs text-stone-500 font-mono">{user?.email || "user@artisanstudio.com"}</p>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Badge
-                    variant={
-                      role === "saas_admin"
-                        ? "destructive"
-                        : role === "merchant"
-                        ? "processing"
-                        : "secondary"
-                    }
-                    className="text-xs uppercase font-bold"
-                  >
-                    Role: {role.replace("_", " ")}
-                  </Badge>
-                  <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                    <UserCheck className="h-3 w-3" /> Active Session
-                  </span>
-                </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-stone-900">{user?.name || "Merchant"}</p>
+                <p className="truncate text-sm text-stone-500">{user?.email || "user@artisanstudio.com"}</p>
               </div>
+              <Badge variant="secondary" className="capitalize">
+                {role.replace("_", " ")}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+            {isSaasAdmin && (
+              <Link href="/admin/rbac">
+                <Button type="button" size="sm" variant="outline" className="gap-1.5">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Users</span>
+                </Button>
+              </Link>
+            )}
+          </div>
+        </section>
 
-        {isSaasAdmin && adminSettingsLoaded && (
-          <Card className="border-stone-200/80 bg-white">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-stone-900">AI Provider</CardTitle>
-              <CardDescription className="text-xs">Meshy settings currently stored for 3D generation</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50/50 p-3">
-                <div className="flex items-center gap-3">
-                  <Cpu className="h-4 w-4 text-amber-600" />
-                  <div>
-                    <p className="text-xs font-semibold text-stone-900">Meshy AI</p>
-                    <p className="text-xs text-stone-500">
-                      Model: {meshyModel} • {meshyTextureResolution.toUpperCase()} texture • {meshyCreditsPerGeneration} credits per multi-angle model
-                    </p>
-                  </div>
-                </div>
-                <Badge variant={meshyApiKey ? "success" : "secondary"}>{meshyApiKey ? "API key saved" : "No API key"}</Badge>
+        {isSaasAdmin && (
+          <section className="space-y-6">
+            <h2 className="flex items-center gap-2 font-display text-lg font-bold text-stone-900">
+              <Cpu className="h-5 w-5 text-amber-600" />
+              Platform
+            </h2>
+
+            {adminSettingsError && (
+              <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                <span className="flex items-center gap-3">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {adminSettingsError}
+                </span>
+                {!adminSettingsLoaded && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => setAdminReloadKey((k) => k + 1)}>
+                    Try again
+                  </Button>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            )}
+
+            {!adminSettingsLoaded && !adminSettingsError ? (
+              <FormSkeleton />
+            ) : (
+              <form onSubmit={handleSaveAdminSettings} className="space-y-6">
+                <Field id="meshy-api-key" label="API key">
+                  <div className="relative">
+                    <Input
+                      id="meshy-api-key"
+                      type={showApiKey ? "text" : "password"}
+                      value={meshyApiKey}
+                      onChange={(e) => setMeshyApiKey(e.target.value)}
+                      placeholder="your_meshy_api_key_here"
+                      className="pr-10 font-mono"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field id="meshy-base-url" label="Base URL">
+                    <Input
+                      id="meshy-base-url"
+                      type="url"
+                      value={meshyApiBaseUrl}
+                      onChange={(e) => setMeshyApiBaseUrl(e.target.value)}
+                      placeholder="https://api.meshy.ai"
+                      required
+                    />
+                  </Field>
+                  <Field id="meshy-model" label="Model">
+                    <Input
+                      id="meshy-model"
+                      type="text"
+                      value={meshyModel}
+                      onChange={(e) => setMeshyModel(e.target.value)}
+                      placeholder="meshy-7.1"
+                      required
+                    />
+                  </Field>
+                  <Field id="meshy-geometry" label="Geometry">
+                    <select
+                      id="meshy-geometry"
+                      value={meshyGeometryResolution}
+                      onChange={(e) => setMeshyGeometryResolution(e.target.value)}
+                      className={selectClass}
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="high_poly">High poly</option>
+                    </select>
+                  </Field>
+                  <Field id="meshy-texture" label="Texture">
+                    <select
+                      id="meshy-texture"
+                      value={meshyTextureResolution}
+                      onChange={(e) => setMeshyTextureResolution(e.target.value)}
+                      className={selectClass}
+                    >
+                      <option value="1k">1k</option>
+                      <option value="2k">2k</option>
+                      <option value="4k">4k</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Field id="credits-per-generation" label="Credits / model">
+                    <Input
+                      id="credits-per-generation"
+                      type="number"
+                      min="1"
+                      value={meshyCreditsPerGeneration}
+                      onChange={(e) => setMeshyCreditsPerGeneration(e.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field id="usd-to-bdt" label="BDT / USD">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-500">৳</span>
+                      <Input
+                        id="usd-to-bdt"
+                        type="number"
+                        step="0.01"
+                        min="1"
+                        value={usdToBdtRate}
+                        onChange={(e) => setUsdToBdtRate(e.target.value)}
+                        className="pl-7"
+                        required
+                      />
+                    </div>
+                  </Field>
+                  <Field id="cost-per-credit" label="USD / credit">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-500">$</span>
+                      <Input
+                        id="cost-per-credit"
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        value={costPerCreditUsd}
+                        onChange={(e) => setCostPerCreditUsd(e.target.value)}
+                        className="pl-7"
+                        required
+                      />
+                    </div>
+                  </Field>
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <span role="status" className="text-sm font-medium text-emerald-700">
+                    {adminSettingsSaved && (
+                      <span className="flex items-center gap-1">
+                        <Check className="h-4 w-4" /> Saved
+                      </span>
+                    )}
+                  </span>
+                  <Button
+                    type="submit"
+                    disabled={savingAdminSettings || !adminSettingsLoaded}
+                    className="bg-gradient-brand text-white"
+                  >
+                    {savingAdminSettings ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </section>
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function Field({
+  id,
+  label,
+  optional,
+  children,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-stone-700">
+        {label}
+        {optional && <span className="ml-1 font-normal text-stone-400">(optional)</span>}
+      </label>
+      {children}
+    </div>
   );
 }

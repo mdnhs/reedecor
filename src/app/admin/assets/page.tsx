@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Lock } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductGridSkeleton } from "@/components/ui/skeleton-patterns";
 import { useAuth } from "@/lib/auth/auth-context";
 import type { AssetCategory, RoomAsset } from "@/lib/assets/types";
 import { assetFetch, errorText, type MerchantOption } from "@/components/assets/api";
@@ -87,25 +87,20 @@ export default function AdminAssetsPage() {
 
   if (!isSaasAdmin) {
     return (
-      <DashboardLayout
-        title="Room Assets — Access Denied"
-        subtitle="SaaS Admin privilege required to manage room assets"
-      >
-        <Card className="mx-auto my-12 max-w-lg space-y-5 border-rose-200 bg-rose-50/40 p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
-            <Lock className="h-7 w-7" />
+      <DashboardLayout title="Room Assets" >
+        <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
+            <Lock className="h-5 w-5" aria-hidden="true" />
           </div>
-          <div className="space-y-2">
-            <Badge variant="destructive" className="text-xs">
-              SaaS Admin Privilege Required
-            </Badge>
-            <p className="text-xs text-stone-600">
-              You are signed in as <strong>{user?.name || "User"}</strong>. Only SaaS Administrators can manage room assets.
+          <div className="space-y-1">
+            <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
+            <p className="text-sm text-stone-500">
+              You are signed in as <strong>{user?.name || "User"}</strong>.
             </p>
           </div>
           {demoMode && (
-            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
-              Switch to SaaS Admin Account
+            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-gradient-brand text-white">
+              Switch to admin
             </Button>
           )}
         </Card>
@@ -116,12 +111,11 @@ export default function AdminAssetsPage() {
   return (
     <DashboardLayout
       title="Room Assets"
-      subtitle="Upload 3D decoration assets and control which merchants can use them"
     >
-      <div className="max-w-6xl space-y-6">
+      <div className="max-w-6xl space-y-8">
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             {error}
           </div>
         )}
@@ -129,28 +123,31 @@ export default function AdminAssetsPage() {
         <CategoryManager categories={categories} onChanged={load} onError={setError} />
         <AssetUploadForm categories={categories} merchants={merchants} onCreated={load} onError={setError} />
 
-        {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-64 w-full" />
-            ))}
-          </div>
-        ) : assets.length === 0 ? (
-          <p className="py-8 text-center text-xs text-stone-400">No assets uploaded yet.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {assets.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                categories={categories}
-                merchants={merchants}
-                onChanged={load}
-                onError={setError}
-              />
-            ))}
-          </div>
-        )}
+        <section className="space-y-3">
+          <h2 className="font-display text-lg font-bold text-stone-900">
+            Uploaded assets{!loading && assets.length > 0 ? ` (${assets.length})` : ""}
+          </h2>
+          {loading ? (
+            <ProductGridSkeleton count={3} />
+          ) : assets.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-stone-200 py-12 text-center text-sm text-stone-500">
+              No assets yet.
+            </p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {assets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  categories={categories}
+                  merchants={merchants}
+                  onChanged={load}
+                  onError={setError}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </DashboardLayout>
   );

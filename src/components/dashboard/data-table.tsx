@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Search, Eye, ChevronLeft, ChevronRight, Box } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { StoredProduct } from "@/server/demo-store";
@@ -31,198 +30,158 @@ export function DataTable({ products }: DataTableProps) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const from = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const to = Math.min(currentPage * pageSize, filtered.length);
+
   return (
-    <Card className="bg-white border-stone-200/80 shadow-xs">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-base font-bold text-stone-900">
-              Furniture Catalog & 3D Assets
-            </CardTitle>
-            <CardDescription className="text-xs text-stone-500">
-              Interactive 3D GLB assets reconstructed from multi-angle photographs
-            </CardDescription>
-          </div>
+    <section className="space-y-4" aria-label="Furniture catalog">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-base font-semibold text-stone-900">Catalog</h2>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 text-stone-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                aria-label="Filter furniture"
-                placeholder="Filter furniture..."
-                value={filter}
-                onChange={(e) => {
-                  setFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-stone-200 focus:outline-hidden focus:ring-2 focus:ring-stone-900 bg-stone-50/50 w-44 sm:w-56"
-              />
-            </div>
-
-            <select
-              aria-label="Filter by category"
-              value={categoryFilter}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:flex-none">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              aria-label="Filter furniture"
+              placeholder="Search"
+              value={filter}
               onChange={(e) => {
-                setCategoryFilter(e.target.value);
+                setFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-stone-200 bg-stone-50/50 text-stone-700 focus:outline-hidden"
-            >
-              <option value="all">All Categories</option>
-              <option value="chair">Chairs</option>
-              <option value="sofa">Sofas</option>
-              <option value="table">Tables</option>
-              <option value="bed">Beds</option>
-              <option value="cabinet">Cabinets</option>
-            </select>
+              className="h-9 w-full rounded-lg border border-stone-200 bg-white pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-900 sm:w-56"
+            />
           </div>
+
+          <select
+            aria-label="Filter by category"
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-900"
+          >
+            <option value="all">All</option>
+            <option value="chair">Chairs</option>
+            <option value="sofa">Sofas</option>
+            <option value="table">Tables</option>
+            <option value="bed">Beds</option>
+            <option value="cabinet">Cabinets</option>
+          </select>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent>
-        <div className="rounded-xl border border-stone-200/80 overflow-hidden bg-white">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-stone-200 bg-stone-50/60 text-stone-600 font-semibold">
-                <th className="py-3 px-4">Item</th>
-                <th className="py-3 px-4 hidden sm:table-cell">Category</th>
-                <th className="py-3 px-4 hidden md:table-cell">Scale (W × D × H)</th>
-                <th className="py-3 px-4">Price</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">3D Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-stone-400">
-                    No furniture items match your search.
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((product) => (
-                  <tr key={product.id} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-stone-100 border border-stone-200 overflow-hidden shrink-0">
-                          {getProductThumbnail(product) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={getProductThumbnail(product)}
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center text-stone-400">
-                              <Box className="h-4 w-4" />
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-stone-900">{product.name}</p>
-                          <p className="text-xs text-stone-500 font-mono">
-                            {product.images.length}/4 angles captured
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-4 hidden sm:table-cell font-medium text-stone-600">
-                      {product.category}
-                    </td>
-
-                    <td className="py-3 px-4 hidden md:table-cell font-medium text-stone-700">
-                      {formatDimension(product.widthMm)} × {formatDimension(product.depthMm)} ×{" "}
-                      {formatDimension(product.heightMm)}
-                    </td>
-
-                    <td className="py-3 px-4 font-bold text-stone-900 font-mono">
-                      {product.priceBdt > 0 ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "Price not set"}
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <Badge
-                        variant={
-                          product.status === "completed"
-                            ? "success"
-                            : product.status === "processing"
-                            ? "processing"
-                            : product.status === "failed"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {product.status === "completed"
-                          ? "● 3D Ready"
-                          : product.status === "processing"
-                          ? "Processing"
-                          : product.status === "failed"
-                          ? "Failed"
-                          : "Draft"}
-                      </Badge>
-                    </td>
-
-                    <td className="py-3 px-4 text-right">
-                      <Link
-                        href={`/viewer/${product.id}`}
-                        className={cn(
-                          buttonVariants({
-                            size: "sm",
-                            variant: product.status === "completed" ? "default" : "outline",
-                          }),
-                          "gap-1.5 text-xs h-7.5",
-                          product.status === "completed"
-                            ? "bg-amber-700 hover:bg-amber-800 text-white shadow-2xs font-semibold"
-                            : "border-stone-200 text-stone-700 hover:bg-stone-100"
-                        )}
-                      >
-                        <Eye className="h-3 w-3" />
-                        <span>{product.status === "completed" ? "3D Studio" : "Inspect"}</span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {paginated.length === 0 ? (
+        <div className="glass-panel rounded-2xl p-8 text-center">
+          <Box className="mx-auto h-8 w-8 text-stone-400" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-stone-900">No results</p>
         </div>
+      ) : (
+        <ul className="divide-y divide-stone-100 rounded-2xl bg-white studio-card-shadow">
+          {paginated.map((product) => {
+            const thumbnail = getProductThumbnail(product);
+            const ready = product.status === "completed";
+            return (
+              <li key={product.id} className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-stone-100">
+                  {thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumbnail} alt={product.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-stone-400">
+                      <Box className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                  )}
+                </div>
 
-        {/* Pagination Bar */}
-        <div className="flex items-center justify-between pt-4 text-xs text-stone-500">
-          <span>
-            Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to{" "}
-            <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of{" "}
-            <strong>{filtered.length}</strong> items
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-stone-900">{product.name}</p>
+                  <p className="truncate text-xs text-stone-500">
+                    {product.category} · {formatDimension(product.widthMm)} ×{" "}
+                    {formatDimension(product.depthMm)} × {formatDimension(product.heightMm)}
+                  </p>
+                </div>
+
+                <span className="hidden font-mono text-sm font-semibold text-stone-900 sm:block">
+                  {product.priceBdt > 0 ? `৳${product.priceBdt.toLocaleString("en-BD")}` : "—"}
+                </span>
+
+                <Badge
+                  variant={
+                    ready
+                      ? "success"
+                      : product.status === "processing"
+                      ? "processing"
+                      : product.status === "failed"
+                      ? "destructive"
+                      : "secondary"
+                  }
+                  className="hidden sm:inline-flex"
+                >
+                  {ready
+                    ? "3D Ready"
+                    : product.status === "processing"
+                    ? "Processing"
+                    : product.status === "failed"
+                    ? "Failed"
+                    : "Draft"}
+                </Badge>
+
+                <Link
+                  href={`/viewer/${product.id}`}
+                  aria-label={`${ready ? "Open 3D studio for" : "Inspect"} ${product.name}`}
+                  className={cn(
+                    buttonVariants({ size: "sm", variant: ready ? "default" : "outline" }),
+                    "h-8 gap-1.5 text-xs",
+                    ready ? "bg-gradient-brand text-white" : "border-stone-200 text-stone-700"
+                  )}
+                >
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="sr-only sm:not-sr-only">{ready ? "Open" : "Inspect"}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="flex items-center justify-between text-xs text-stone-500">
+        <span>
+          {from}–{to} of {filtered.length}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            aria-label="Previous page"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span aria-live="polite">
+            {currentPage} / {totalPages}
           </span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage <= 1}
-              aria-label="Previous page"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="h-7 w-7 p-0"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <span className="font-semibold text-stone-800 px-2">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage >= totalPages}
-              aria-label="Next page"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="h-7 w-7 p-0"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            aria-label="Next page"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="h-8 w-8 p-0"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

@@ -60,10 +60,12 @@ export function RecentCreations({
         {TABS.map((t) => (
           <button
             key={t.key}
+            type="button"
+            aria-pressed={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-              tab === t.key ? "bg-amber-600 text-white" : "text-stone-500 hover:bg-white hover:text-stone-900"
+              tab === t.key ? "bg-stone-900 text-white" : "text-stone-500 hover:bg-white hover:text-stone-900"
             )}
           >
             {t.label}

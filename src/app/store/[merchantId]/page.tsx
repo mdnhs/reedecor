@@ -14,8 +14,8 @@ import {
   ArrowLeft,
   Check,
   Search,
+  Ruler,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -188,9 +188,9 @@ export default function PublicStorefrontPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#faf9f6] p-6 lg:p-12">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <Skeleton className="h-48 w-full rounded-2xl" />
+      <div className="min-h-screen px-4 py-8 lg:px-8">
+        <div className="mx-auto max-w-6xl space-y-8">
+          <Skeleton className="h-40 w-full rounded-2xl" />
           <ProductGridSkeleton count={3} />
         </div>
       </div>
@@ -199,15 +199,17 @@ export default function PublicStorefrontPage({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-[#faf9f6] flex flex-col items-center justify-center p-6 text-center">
-        <Box className="w-16 h-16 text-muted-foreground mb-4 stroke-1" />
-        <h1 className="text-2xl font-bold text-neutral-900">Merchant Storefront Not Found</h1>
-        <p className="text-muted-foreground mt-2 max-w-md">
-          This merchant profile does not exist or may have been unlinked.
-        </p>
-        <Link href="/products" className="mt-6">
-          <Button variant="outline">Browse Furniture Catalog</Button>
-        </Link>
+      <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+        <div className="glass-panel studio-card-shadow flex max-w-md flex-col items-center gap-3 rounded-2xl p-8">
+          <Box className="h-10 w-10 text-stone-400" strokeWidth={1.5} aria-hidden="true" />
+          <h1 className="text-xl font-semibold text-stone-900">Store not found</h1>
+          <p className="text-sm text-stone-500">
+            This store doesn&apos;t exist or may have been removed.
+          </p>
+          <Link href="/products" className="mt-2">
+            <Button variant="outline">Browse catalog</Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -221,130 +223,107 @@ export default function PublicStorefrontPage({
       : null;
 
   return (
-    <div className="min-h-screen bg-[#faf9f6] text-neutral-900 selection:bg-amber-100 selection:text-amber-900">
-      {/* Top Banner Navigation */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-neutral-200/80 px-4 lg:px-8 py-3.5 transition-all">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/products"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200/80 px-3 py-1.5 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Studio</span>
-            </Link>
-            <div className="h-4 w-px bg-neutral-300 hidden sm:block" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200/60 hidden sm:inline-block">
-              Public Merchant Storefront
-            </span>
-          </div>
+    <div className="min-h-screen text-stone-900 selection:bg-amber-100 selection:text-amber-900">
+      <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 px-4 py-3 backdrop-blur-xl lg:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <Link
+            href="/products"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-stone-600 transition-colors hover:text-stone-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back</span>
+          </Link>
 
-          <div className="flex items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyStoreLink}
-              className="h-8 gap-1.5 text-xs border-neutral-300 hover:bg-neutral-100 text-neutral-700"
-            >
-              {copiedLink ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-700 font-medium">Link Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Share Storefront</span>
-                </>
-              )}
-            </Button>
-
-            {merchantGeneralWaUrl && (
-              <a
-                href={merchantGeneralWaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>WhatsApp Store</span>
-              </a>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyStoreLink}
+            aria-label="Copy store link"
+            className="gap-1.5 bg-white/70"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                <span role="status">Link copied</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="h-4 w-4" aria-hidden="true" />
+                <span>Share</span>
+              </>
             )}
-          </div>
+          </Button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-        {/* Merchant Hero Profile Card */}
-        <section className="bg-white rounded-2xl border border-neutral-200/80 shadow-xs p-6 lg:p-8 relative overflow-hidden">
-          {/* Subtle warm decorative background accent */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-amber-50/80 via-transparent to-transparent -z-0 pointer-events-none rounded-tr-2xl" />
-
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex items-start sm:items-center gap-4 lg:gap-6">
-              {/* Avatar */}
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-md border-2 border-white ring-2 ring-amber-100 shrink-0">
+      <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 lg:px-8">
+        <section className="glass-panel studio-card-shadow rounded-2xl p-5 sm:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div
+                aria-hidden="true"
+                className="bg-gradient-brand flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-semibold text-white sm:h-20 sm:w-20 sm:text-3xl"
+              >
                 {storeName.charAt(0)}
               </div>
 
-              {/* Bio & Details */}
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
-                    {storeName}
-                  </h1>
-                  {profile.name && profile.name !== storeName && (
-                    <span className="text-xs text-stone-500 font-medium">by {profile.name}</span>
-                  )}
-                </div>
-
-                {profile.bio && (
-                  <p className="text-sm text-neutral-600 max-w-2xl leading-relaxed">{profile.bio}</p>
+              <div className="min-w-0 space-y-1.5">
+                <h1 className="text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">
+                  {storeName}
+                </h1>
+                {profile.name && profile.name !== storeName && (
+                  <p className="text-sm text-stone-500">by {profile.name}</p>
                 )}
-
-                <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500 pt-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-sm text-stone-500">
                   {profile.location && (
                     <span className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                      <MapPin className="h-4 w-4 text-amber-600" aria-hidden="true" />
                       {profile.location}
                     </span>
                   )}
                   <span className="flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-neutral-600" />
-                    <strong className="text-neutral-800">{followerCount.toLocaleString()}</strong>{" "}
-                    Followers
+                    <Users className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <strong className="font-medium text-stone-800">
+                        {followerCount.toLocaleString()}
+                      </strong>{" "}
+                      followers
+                    </span>
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <Box className="w-3.5 h-3.5 text-neutral-600" />
-                    <strong className="text-neutral-800">{profile.products.length}</strong> 3D
-                    Furniture Pieces
+                    <Box className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <strong className="font-medium text-stone-800">
+                        {profile.products.length}
+                      </strong>{" "}
+                      products
+                    </span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Merchant Actions: Follow & Direct WhatsApp */}
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-neutral-100">
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 variant={isFollowing ? "outline" : "default"}
                 onClick={handleToggleFollow}
                 disabled={followingBusy}
+                aria-pressed={isFollowing}
                 className={
                   isFollowing
-                    ? "border-neutral-300 text-neutral-700 hover:bg-neutral-100 h-10 px-5 gap-2"
-                    : "bg-neutral-900 hover:bg-neutral-800 text-white h-10 px-5 gap-2 shadow-xs"
+                    ? "h-10 flex-1 gap-2 bg-white/70 px-5 md:flex-none"
+                    : "bg-gradient-brand h-10 flex-1 gap-2 px-5 text-white hover:opacity-90 md:flex-none"
                 }
               >
                 {isFollowing ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                     <span>Following</span>
                   </>
                 ) : (
                   <>
-                    <Users className="w-4 h-4" />
-                    <span>Follow Merchant</span>
+                    <Users className="h-4 w-4" aria-hidden="true" />
+                    <span>Follow</span>
                   </>
                 )}
               </Button>
@@ -354,58 +333,60 @@ export default function PublicStorefrontPage({
                   href={merchantGeneralWaUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-md font-medium text-sm bg-[#25D366] hover:bg-[#20ba59] text-white shadow-xs transition-colors"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 md:flex-none"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Contact on WhatsApp</span>
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  <span>WhatsApp</span>
                 </a>
               )}
             </div>
           </div>
         </section>
 
-        {/* Filter and Search Bar */}
-        <section className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0 scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
-                  selectedCategory === cat
-                    ? "bg-neutral-900 text-white shadow-xs"
-                    : "bg-white text-neutral-600 border border-neutral-200/80 hover:bg-neutral-50"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              role="group"
+              aria-label="Filter by category"
+              className="scrollbar-none -mx-4 flex items-center gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+            >
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  aria-pressed={selectedCategory === cat}
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    selectedCategory === cat
+                      ? "bg-gradient-brand text-white"
+                      : "border border-stone-200 bg-white/70 text-stone-600 hover:bg-white"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
+                aria-hidden="true"
+              />
+              <Input
+                type="search"
+                placeholder="Search this store"
+                aria-label="Search products in this store"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 bg-white/70 pl-9 text-sm"
+              />
+            </div>
           </div>
 
-          {/* Search Input */}
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <Input
-              type="text"
-              placeholder="Search furniture in store..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs bg-white border-neutral-200"
-            />
-          </div>
-        </section>
-
-        {/* Product Catalog Grid */}
-        <section>
           {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center space-y-3">
-              <Box className="w-12 h-12 text-neutral-400 mx-auto stroke-1" />
-              <h3 className="text-lg font-semibold text-neutral-800">No Furniture Models Found</h3>
-              <p className="text-sm text-neutral-500 max-w-sm mx-auto">
-                No items match your active filters. Try selecting a different category or clearing
-                your search query.
-              </p>
+            <div className="glass-panel studio-card-shadow space-y-3 rounded-2xl p-10 text-center">
+              <Box className="mx-auto h-10 w-10 text-stone-400" strokeWidth={1.5} aria-hidden="true" />
+              <h2 className="text-lg font-semibold text-stone-900">Nothing found</h2>
               <Button
                 variant="outline"
                 size="sm"
@@ -414,15 +395,14 @@ export default function PublicStorefrontPage({
                   setSearchQuery("");
                 }}
               >
-                Reset Filters
+                Reset filters
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((prod) => {
                 const isWishlisted = wishlistIds.has(prod.id);
 
-                // Specific WhatsApp Direct Order Link for this product
                 const currentUrl = origin
                   ? `${origin}/viewer/${prod.id}`
                   : `/viewer/${prod.id}`;
@@ -442,119 +422,94 @@ export default function PublicStorefrontPage({
                     : null;
 
                 return (
-                  <Card
+                  <li
                     key={prod.id}
-                    className="group bg-white rounded-xl border border-neutral-200/80 overflow-hidden hover:border-amber-300 hover:shadow-md transition-all flex flex-col justify-between"
+                    className="group glass-panel studio-card-shadow flex flex-col overflow-hidden rounded-2xl transition-shadow hover:shadow-lg"
                   >
-                    <Link
-                      href={`/viewer/${prod.id}`}
-                      className="block cursor-pointer focus:outline-none"
-                    >
-                      {/* Image Frame */}
-                      <div className="relative aspect-4/3 w-full bg-neutral-100 overflow-hidden">
-                        {prod.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={prod.thumbnailUrl}
-                            alt={prod.name}
-                            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-neutral-300">
-                            <Box className="h-10 w-10" />
-                          </div>
-                        )}
-
-                        {/* Top Badges */}
-                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
-                          <Badge className="bg-amber-600/90 text-white border-0 text-xs tracking-wide font-medium shadow-xs gap-1 backdrop-blur-xs">
-                            <Sparkles className="w-3 h-3" />
-                            AI-generated 3D
-                          </Badge>
-                          <Badge className="bg-white/90 text-neutral-800 border-neutral-200 text-xs font-medium backdrop-blur-xs">
+                    <div className="relative">
+                      <Link
+                        href={`/viewer/${prod.id}`}
+                        aria-label={`View ${prod.name} in 3D`}
+                        className="block focus-visible:outline-2 focus-visible:outline-amber-600"
+                      >
+                        <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
+                          {prod.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={prod.thumbnailUrl}
+                              alt={prod.name}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-stone-300">
+                              <Box className="h-10 w-10" aria-hidden="true" />
+                            </div>
+                          )}
+                          <Badge className="absolute left-3 top-3 border-0 bg-white/85 text-xs font-medium text-amber-700 backdrop-blur-xs">
                             {prod.category}
                           </Badge>
+                          <Badge className="absolute bottom-3 left-3 gap-1 border-0 bg-stone-900/70 text-xs font-medium text-white backdrop-blur-xs">
+                            <Sparkles className="h-3 w-3" aria-hidden="true" />
+                            AI-generated 3D
+                          </Badge>
                         </div>
+                      </Link>
 
-                        {/* Wishlist Heart Button */}
-                        {wishlistOn && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleToggleWishlist(prod.id);
-                            }}
-                            className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                              isWishlisted
-                                ? "bg-rose-50 text-rose-600 shadow-sm"
-                                : "bg-white/80 text-neutral-600 hover:bg-white hover:text-rose-600 shadow-xs"
-                            }`}
-                            title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
-                          >
-                            <Heart
-                              className={`w-4 h-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
-                            />
-                          </button>
-                        )}
+                      {wishlistOn && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleWishlist(prod.id)}
+                          aria-pressed={isWishlisted}
+                          aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
+                          className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full shadow-xs transition-colors ${
+                            isWishlisted
+                              ? "bg-rose-50 text-rose-600"
+                              : "bg-white/85 text-stone-600 hover:bg-white hover:text-rose-600"
+                          }`}
+                        >
+                          <Heart
+                            className={`h-4 w-4 ${isWishlisted ? "fill-rose-500 text-rose-500" : ""}`}
+                            aria-hidden="true"
+                          />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-3 p-4">
+                      <Link href={`/viewer/${prod.id}`} className="block space-y-1">
+                        <h3 className="line-clamp-1 text-base font-semibold text-stone-900">
+                          {prod.name}
+                        </h3>
+                      </Link>
+
+                      <div className="mt-auto flex items-baseline justify-between gap-3">
+                        <span className="text-lg font-semibold text-stone-900">
+                          {prod.priceBdt ? `৳${prod.priceBdt.toLocaleString("en-BD")}` : "On request"}
+                        </span>
+                        <span className="flex items-center gap-1 font-mono text-xs text-stone-400">
+                          <Ruler className="h-3.5 w-3.5" aria-hidden="true" />
+                          {formatDimension(prod.widthMm)} × {formatDimension(prod.depthMm)} ×{" "}
+                          {formatDimension(prod.heightMm)}
+                        </span>
                       </div>
 
-                      {/* Content */}
-                      <CardContent className="p-4 space-y-3">
-                        <div>
-                          <h3 className="font-semibold text-base text-neutral-900 group-hover:text-amber-800 transition-colors line-clamp-1">
-                            {prod.name}
-                          </h3>
-                          {prod.description && (
-                            <p className="text-xs text-neutral-500 line-clamp-2 mt-1 leading-relaxed">
-                              {prod.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Dimensions & Specifications */}
-                        <div className="flex items-center justify-between text-xs text-neutral-500 pt-1 border-t border-neutral-100">
-                          <span>Dimensions</span>
-                          <span className="font-mono text-neutral-700">
-                            {formatDimension(prod.widthMm)} × {formatDimension(prod.depthMm)} ×{" "}
-                            {formatDimension(prod.heightMm)}
-                          </span>
-                        </div>
-
-                        {/* Purchase Price */}
-                        <div className="flex items-baseline justify-between pt-1">
-                          <span className="text-xs text-neutral-500">Purchase Price</span>
-                          <span className="text-lg font-bold text-neutral-900">
-                            {prod.priceBdt ? `৳${prod.priceBdt.toLocaleString("en-BD")}` : "On request"}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Link>
-
-                    {/* Action Footer */}
-                    {productWaUrl && (
-                      <div className="p-4 pt-0">
+                      {productWaUrl && (
                         <a
                           href={productWaUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-full"
-                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Order ${prod.name} via WhatsApp`}
+                          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
                         >
-                          <Button
-                            size="sm"
-                            className="w-full text-xs h-9 bg-[#25D366] hover:bg-[#20ba59] text-white gap-1.5 shadow-xs"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>Order via WhatsApp</span>
-                          </Button>
+                          <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                          <span>Order</span>
                         </a>
-                      </div>
-                    )}
-                  </Card>
+                      )}
+                    </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </section>
       </main>

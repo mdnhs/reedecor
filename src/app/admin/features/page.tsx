@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Lock } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/skeleton-patterns";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useFeatures } from "@/lib/features/features-context";
 import type { FeatureDefinition, FeatureGroup } from "@/lib/features/catalog";
@@ -81,22 +81,20 @@ export default function AdminFeaturesPage() {
 
   if (!isSaasAdmin) {
     return (
-      <DashboardLayout title="Features — Access Denied" subtitle="SaaS Admin privilege required to manage features">
-        <Card className="mx-auto my-12 max-w-lg space-y-5 border-rose-200 bg-rose-50/40 p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
-            <Lock className="h-7 w-7" />
+      <DashboardLayout title="Features" >
+        <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
+            <Lock className="h-5 w-5" aria-hidden="true" />
           </div>
-          <div className="space-y-2">
-            <Badge variant="destructive" className="text-xs">
-              SaaS Admin Privilege Required
-            </Badge>
-            <p className="text-xs text-stone-600">
-              You are signed in as <strong>{user?.name || "User"}</strong>. Only SaaS Administrators can switch features on or off.
+          <div className="space-y-1">
+            <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
+            <p className="text-sm text-stone-500">
+              You are signed in as <strong>{user?.name || "User"}</strong>.
             </p>
           </div>
           {demoMode && (
-            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-stone-900 text-white hover:bg-stone-800">
-              Switch to SaaS Admin Account
+            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-gradient-brand text-white">
+              Switch to admin
             </Button>
           )}
         </Card>
@@ -105,63 +103,72 @@ export default function AdminFeaturesPage() {
   }
 
   return (
-    <DashboardLayout title="Features" subtitle="Switch platform features on or off for everyone. Turning a feature off never deletes data.">
-      <div className="max-w-4xl space-y-6">
+    <DashboardLayout title="Features" >
+      <div className="max-w-3xl space-y-8">
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             {error}
           </div>
         )}
 
         {loading ? (
-          <Skeleton className="h-64 w-full" />
+          <TableSkeleton rows={6} />
+        ) : features.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-stone-200 py-12 text-center text-sm text-stone-500">
+            No features yet.
+          </p>
         ) : (
           GROUP_ORDER.map((group) => {
             const items = features.filter((f) => f.group === group);
             if (items.length === 0) return null;
             return (
-              <Card key={group}>
-                <CardHeader>
-                  <CardTitle className="text-sm">{group}</CardTitle>
-                  <CardDescription className="text-xs">
+              <section key={group} className="space-y-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="font-display text-lg font-bold text-stone-900">{group}</h2>
+                  <span className="text-xs text-stone-500">
                     {items.filter((f) => f.enabled).length} of {items.length} on
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="divide-y divide-stone-100">
+                  </span>
+                </div>
+                <Card className="divide-y divide-stone-100 p-0">
                   {items.map((feature) => (
-                    <div key={feature.key} className="flex items-center justify-between gap-4 py-3">
-                      <div className="space-y-0.5">
+                    <div key={feature.key} className="flex items-center justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0 space-y-0.5">
                         <p className="text-sm font-semibold text-stone-900">{feature.label}</p>
-                        <p className="text-xs text-stone-500">{feature.description}</p>
+                        <p className="text-sm text-stone-500">{feature.description}</p>
                         {feature.updatedAt && (
-                          <p className="text-xs text-stone-400">
+                          <p className="text-xs text-stone-500">
                             Last changed {new Date(feature.updatedAt).toLocaleString()}
                             {feature.updatedBy ? ` by ${feature.updatedBy}` : ""}
                           </p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={feature.enabled}
-                        aria-label={feature.label}
-                        disabled={saving === feature.key}
-                        onClick={() => toggle(feature)}
-                        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                          feature.enabled ? "bg-stone-900" : "bg-stone-300"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                            feature.enabled ? "left-5.5" : "left-0.5"
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="w-6 text-right text-xs font-medium text-stone-500" aria-hidden="true">
+                          {feature.enabled ? "On" : "Off"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={feature.enabled}
+                          aria-label={feature.label}
+                          disabled={saving === feature.key}
+                          onClick={() => toggle(feature)}
+                          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2 disabled:opacity-60 ${
+                            feature.enabled ? "bg-amber-600" : "bg-stone-300"
                           }`}
-                        />
-                      </button>
+                        >
+                          <span
+                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                              feature.enabled ? "left-5.5" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
+                </Card>
+              </section>
             );
           })
         )}

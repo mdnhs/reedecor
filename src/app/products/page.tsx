@@ -6,7 +6,6 @@ import {
   Search,
   Plus,
   Box,
-  Eye,
   Trash2,
   Heart,
   MessageCircle,
@@ -177,89 +176,102 @@ export default function MyProductsPage() {
     });
   }, [products, searchQuery, selectedCategory, selectedStatus]);
 
+  const hasActiveFilters =
+    searchQuery !== "" || selectedCategory !== "All" || selectedStatus !== "All";
+
   return (
     <DashboardLayout
       title="Furniture Products"
-      subtitle="Manage your 3D furniture catalog, purchase prices, and customer WhatsApp orders"
+      subtitle="Your 3D catalog"
     >
-      <div className="space-y-6 max-w-7xl">
-        {/* Top Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+      <div className="max-w-5xl space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
+              aria-hidden="true"
+            />
             <Input
-              placeholder="Search products by name or category..."
+              type="search"
+              aria-label="Search products"
+              placeholder="Search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-white border-stone-200/90 shadow-2xs"
+              className="bg-white pl-9"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <select
+              aria-label="Filter by status"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-stone-200 bg-white text-xs font-semibold text-stone-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900"
+              className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-900"
             >
-              <option value="All">All Statuses</option>
+              <option value="All">All</option>
               <option value="completed">3D Ready</option>
               <option value="processing">Processing</option>
               <option value="failed">Failed</option>
               <option value="draft">Draft</option>
             </select>
 
-            <Link href={`/store/${merchantStoreId}`} target="_blank">
-              <Button size="sm" variant="outline" className="gap-1.5 border-stone-200 text-stone-700 text-xs h-9">
-                <Store className="h-3.5 w-3.5 text-amber-700" />
-                <span>Public Storefront</span>
-                <ExternalLink className="h-3 w-3 text-stone-400" />
-              </Button>
+            <Link
+              href={`/store/${merchantStoreId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open public storefront"
+              title="Storefront"
+              className="inline-flex h-9 items-center gap-1 rounded-lg px-3 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+            >
+              <Store className="h-4 w-4" aria-hidden="true" />
+              <ExternalLink className="h-3 w-3 text-stone-400" aria-hidden="true" />
             </Link>
 
             {!isCustomer && generationOn && (
               <Link href="/create">
-                <Button size="sm" className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs h-9">
-                  <Plus className="h-4 w-4" />
-                  <span>Create Product</span>
+                <Button size="sm" aria-label="Create product" className="h-9 gap-1.5 bg-gradient-brand text-white">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <span>Create</span>
                 </Button>
               </Link>
             )}
           </div>
         </div>
 
-        {/* Category Horizontal Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={cn(
-                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150",
-                selectedCategory === cat
-                  ? "bg-stone-900 text-white shadow-2xs"
-                  : "bg-white border border-stone-200/80 text-stone-600 hover:bg-stone-100 hover:text-stone-900"
-              )}
-            >
-              {cat === "All" ? "All Categories" : cat}
-            </button>
-          ))}
-        </div>
+        {categories.length > 2 && (
+          <div
+            role="group"
+            aria-label="Filter by category"
+            className="no-scrollbar flex items-center gap-1.5 overflow-x-auto"
+          >
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                aria-pressed={selectedCategory === cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  "whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  selectedCategory === cat
+                    ? "bg-stone-900 text-white"
+                    : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+                )}
+              >
+                {cat === "All" ? "All" : cat}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Product Cards Grid */}
         {loading ? (
           <ProductGridSkeleton />
         ) : filteredProducts.length === 0 ? (
-          <Card className="p-12 text-center border-dashed border-2 border-stone-200 bg-white studio-card-shadow">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="h-12 w-12 rounded-2xl bg-stone-100 text-stone-500 mx-auto flex items-center justify-center">
-                <Box className="h-6 w-6" />
-              </div>
-              <h3 className="text-base font-semibold text-stone-900 font-display">
-                No matching products found
-              </h3>
-              <p className="text-xs text-stone-500">
-                Try adjusting your search filter or add a new piece of furniture.
-              </p>
+          <div className="glass-panel mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl p-8 text-center">
+            <Box className="h-8 w-8 text-stone-400" aria-hidden="true" />
+            <h3 className="font-display text-base font-semibold text-stone-900">
+              {hasActiveFilters ? "No results" : "No products yet"}
+            </h3>
+            {hasActiveFilters ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -269,12 +281,22 @@ export default function MyProductsPage() {
                   setSelectedStatus("All");
                 }}
               >
-                Reset filters
+                Clear filters
               </Button>
-            </div>
-          </Card>
+            ) : (
+              !isCustomer &&
+              generationOn && (
+                <Link href="/create">
+                  <Button size="sm" className="bg-gradient-brand text-white">
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Create
+                  </Button>
+                </Link>
+              )
+            )}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map((product) => {
               const frontImage = getProductThumbnail(product);
 
@@ -297,51 +319,24 @@ export default function MyProductsPage() {
               });
 
               return (
-                <Card
-                  key={product.id}
-                  className="overflow-hidden border-stone-200/80 bg-white studio-card-shadow studio-card-hover flex flex-col justify-between group rounded-2xl"
-                >
-                  <Link
-                    href={`/viewer/${product.id}`}
-                    className="block cursor-pointer focus:outline-none"
-                  >
-                    {/* Image Preview & Badges */}
-                    <div className="relative aspect-4/3 bg-stone-100 overflow-hidden">
-                      {frontImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={frontImage}
-                          alt={product.name}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-stone-400">
-                          <Box className="h-8 w-8" />
-                        </div>
-                      )}
-
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
-                        {wishlistOn && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleToggleWishlist(product.id);
-                            }}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                              isWishlisted
-                                ? "bg-rose-50 text-rose-600 shadow-xs"
-                                : "bg-white/80 text-stone-600 hover:bg-white hover:text-rose-600 shadow-2xs"
-                            }`}
-                            title={isWishlisted ? "In Wishlist" : "Add to Wishlist"}
-                          >
-                            <Heart
-                              className={`w-3.5 h-3.5 ${
-                                isWishlisted ? "fill-rose-500 text-rose-500" : ""
-                              }`}
-                            />
-                          </button>
+                <li key={product.id}>
+                  <Card className="studio-card-shadow flex h-full flex-col overflow-hidden rounded-2xl border-stone-200/80 bg-white">
+                    <Link
+                      href={`/viewer/${product.id}`}
+                      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900"
+                    >
+                      <div className="relative aspect-4/3 overflow-hidden bg-stone-100">
+                        {frontImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={frontImage}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-stone-400">
+                            <Box className="h-8 w-8" aria-hidden="true" />
+                          </div>
                         )}
                         <Badge
                           variant={
@@ -353,85 +348,88 @@ export default function MyProductsPage() {
                               ? "destructive"
                               : "secondary"
                           }
-                          className="shadow-2xs backdrop-blur-md text-xs"
+                          className="absolute left-3 top-3 bg-white/90 backdrop-blur-md"
                         >
                           {product.status === "completed"
                             ? "3D Ready"
                             : product.status === "processing"
-                            ? "Generating..."
+                            ? "Generating"
                             : product.status === "failed"
                             ? "Failed"
                             : "Draft"}
                         </Badge>
                       </div>
 
-                      <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md text-stone-900 border border-stone-200/80 text-xs px-2.5 py-0.5 rounded-full font-semibold shadow-2xs">
-                        {product.category}
-                      </div>
-                    </div>
-
-                    {/* Meta info */}
-                    <CardContent className="p-5 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-bold text-stone-900 text-sm tracking-tight truncate font-display group-hover:text-amber-800 transition-colors">
-                          {product.name}
-                        </h3>
-                        <span className="font-bold text-stone-900 text-sm shrink-0 font-mono">
-                          {price ? `৳${price.toLocaleString("en-BD")}` : "Price not set"}
-                        </span>
-                      </div>
-
-                      {product.description && (
-                        <p className="text-xs text-stone-500 line-clamp-2">
-                          {product.description}
+                      <CardContent className="space-y-1 p-4 pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="truncate font-display text-sm font-semibold text-stone-900">
+                            {product.name}
+                          </h3>
+                          <span className="shrink-0 font-mono text-sm font-semibold text-stone-900">
+                            {price ? `৳${price.toLocaleString("en-BD")}` : "—"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500">
+                          {product.category} · {formatDimension(product.widthMm)} ×{" "}
+                          {formatDimension(product.depthMm)} × {formatDimension(product.heightMm)}
                         </p>
-                      )}
+                      </CardContent>
+                    </Link>
 
-                      <div className="pt-1 text-xs text-stone-600 flex items-center justify-between border-t border-stone-100">
-                        <span>Dimensions</span>
-                        <strong className="text-stone-800 font-mono text-xs">
-                          {formatDimension(product.widthMm)} × {formatDimension(product.depthMm)} × {formatDimension(product.heightMm)}
-                        </strong>
+                    <div className="mt-auto flex items-center justify-between gap-2 px-4 pb-4">
+                      <div className="flex items-center gap-1">
+                        {whatsappOn && (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Share ${product.name} on WhatsApp`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                            <span className="sr-only">Share</span>
+                          </a>
+                        )}
+                        {wishlistOn && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleWishlist(product.id)}
+                            aria-pressed={isWishlisted}
+                            aria-label={
+                              isWishlisted
+                                ? `Remove ${product.name} from wishlist`
+                                : `Add ${product.name} to wishlist`
+                            }
+                            className={cn(
+                              "flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50",
+                              isWishlisted ? "text-rose-600" : "text-stone-500 hover:text-rose-600"
+                            )}
+                          >
+                            <Heart
+                              className={cn("h-4 w-4", isWishlisted && "fill-rose-500")}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        )}
                       </div>
-                    </CardContent>
-                  </Link>
-
-                  {/* Actions Bar */}
-                  <div className="p-4 pt-0 border-t border-stone-100 mt-2 flex items-center justify-between">
-                    {whatsappOn && (
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
-                        title="Share this piece on WhatsApp"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
-                        <span>WhatsApp</span>
-                      </a>
-                    )}
-                    {!isCustomer && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
-                        disabled={deletingId === product.id}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDelete(product.id);
-                        }}
-                        title="Delete product"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </Card>
+                      {!isCustomer && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-stone-500 hover:bg-rose-50 hover:text-rose-600"
+                          disabled={deletingId === product.id}
+                          onClick={() => handleDelete(product.id)}
+                          aria-label={`Delete ${product.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </div>
     </DashboardLayout>
