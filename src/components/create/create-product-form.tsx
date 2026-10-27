@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveProductImageToIDB } from "@/lib/storage/indexeddb-storage";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FormSkeleton } from "@/components/ui/skeleton-patterns";
 import { useFeature, useFeatures } from "@/lib/features/features-context";
 import { featureOffMessage } from "@/lib/features/catalog";
 import { ShieldAlert, Store } from "lucide-react";
@@ -299,7 +299,7 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
   if (!featuresLoaded) {
     return (
       <DashboardLayout title="Create 3D Model" subtitle="Loading">
-        <Skeleton className="mx-auto my-12 h-64 w-full max-w-lg" />
+        <FormSkeleton />
       </DashboardLayout>
     );
   }

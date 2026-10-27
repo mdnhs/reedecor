@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ProductGridSkeleton } from "@/components/ui/skeleton-patterns";
 import { StoredProduct } from "@/server/demo-store";
 import { formatDimension, cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -247,15 +247,7 @@ export default function MyProductsPage() {
 
         {/* Product Cards Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="p-4 space-y-3 bg-white">
-                <Skeleton className="h-48 w-full rounded-xl" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </Card>
-            ))}
-          </div>
+          <ProductGridSkeleton />
         ) : filteredProducts.length === 0 ? (
           <Card className="p-12 text-center border-dashed border-2 border-stone-200 bg-white studio-card-shadow">
             <div className="max-w-md mx-auto space-y-4">

@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ViewerSkeleton } from "@/components/ui/skeleton-patterns";
 import { ModelViewer } from "@/components/studio/model-viewer";
 import { SceneEditor } from "@/components/studio/scene-editor/scene-editor";
 import { SceneView } from "@/components/studio/scene/scene-view";
@@ -327,13 +328,7 @@ function ViewerContent({ id }: { id: string }) {
   if (loading) {
     return (
       <DashboardLayout title="3D Studio Viewer">
-        <div className="space-y-6">
-          <Skeleton className="h-8 w-48" />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Skeleton className="lg:col-span-2 h-140 rounded-xl" />
-            <Skeleton className="h-140 rounded-xl" />
-          </div>
-        </div>
+        <ViewerSkeleton />
       </DashboardLayout>
     );
   }

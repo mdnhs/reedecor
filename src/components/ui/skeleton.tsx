@@ -4,12 +4,7 @@ function Skeleton({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn("animate-pulse rounded-md bg-stone-200/80", className)}
-      {...props}
-    />
-  );
+  return <div aria-hidden className={cn("skeleton rounded-md", className)} {...props} />;
 }
 
 export { Skeleton };

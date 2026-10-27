@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ChartSkeleton, StatCardsSkeleton, TableSkeleton } from "@/components/ui/skeleton-patterns";
 import { StoredProduct } from "@/server/demo-store";
 import { useAuth } from "@/lib/auth/auth-context";
 import { SectionCards, type CreditSummary } from "@/components/dashboard/section-cards";
@@ -221,11 +221,7 @@ export default function OverviewPage() {
           </section>
 
           {isCustomer ? null : loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-32 w-full rounded-2xl" />
-              ))}
-            </div>
+            <StatCardsSkeleton />
           ) : (
             <SectionCards products={products} credits={isSaasAdmin ? null : credits} />
           )}
@@ -256,7 +252,7 @@ export default function OverviewPage() {
         {!isCustomer && (
           <div className="min-w-0 xl:col-span-3">
             {loading ? (
-              <Skeleton className="h-80 w-full rounded-2xl" />
+              <ChartSkeleton />
             ) : (
               <ChartAreaInteractive
                 products={products}
@@ -267,7 +263,7 @@ export default function OverviewPage() {
         )}
 
         <div className="min-w-0 xl:col-span-3">
-          {loading ? <Skeleton className="h-64 w-full rounded-2xl" /> : <DataTable products={products} />}
+          {loading ? <TableSkeleton /> : <DataTable products={products} />}
         </div>
       </div>
     </DashboardLayout>

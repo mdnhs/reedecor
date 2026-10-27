@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductGridSkeleton } from "@/components/ui/skeleton-patterns";
 import type { PublicStore } from "@/lib/public-store";
 import { formatDimension } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -190,11 +191,7 @@ export default function PublicStorefrontPage({
       <div className="min-h-screen bg-[#faf9f6] p-6 lg:p-12">
         <div className="max-w-6xl mx-auto space-y-8">
           <Skeleton className="h-48 w-full rounded-2xl" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Skeleton className="h-80 w-full rounded-xl" />
-            <Skeleton className="h-80 w-full rounded-xl" />
-            <Skeleton className="h-80 w-full rounded-xl" />
-          </div>
+          <ProductGridSkeleton count={3} />
         </div>
       </div>
     );
