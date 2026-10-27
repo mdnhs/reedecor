@@ -4,7 +4,9 @@ import { isPublicPath, safeNextPath } from "../src/lib/auth/route-guard";
 describe("isPublicPath", () => {
   it("keeps the login page, storefronts and the 3D viewer public", () => {
     expect(isPublicPath("/login")).toBe(true);
+    expect(isPublicPath("/store")).toBe(true);
     expect(isPublicPath("/store/m-1")).toBe(true);
+    expect(isPublicPath("/viewer")).toBe(true);
     expect(isPublicPath("/viewer/p-1")).toBe(true);
   });
 

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormSkeleton } from "@/components/ui/skeleton-patterns";
@@ -198,11 +197,7 @@ export default function SettingsPage() {
     "h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900";
 
   return (
-    <DashboardLayout
-      title="Settings"
-      subtitle="Store, account, platform"
-    >
-      <div className="mx-auto max-w-3xl space-y-12 pb-12">
+    <div className="mx-auto max-w-3xl space-y-12 pb-12">
         <form onSubmit={handleSaveMerchantSettings} className="space-y-6">
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-stone-900">
             <Store className="h-5 w-5 text-amber-600" />
@@ -497,7 +492,6 @@ export default function SettingsPage() {
           </section>
         )}
       </div>
-    </DashboardLayout>
   );
 }
 

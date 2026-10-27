@@ -8,6 +8,7 @@ import { featureFlags, featureOffResponse } from "./feature-service";
 import { sceneSchema } from "@/lib/scenes/schema";
 import { validateSceneSave } from "@/lib/scenes/rules";
 import { EMPTY_SCENE, type ResolvedScene, type SceneData } from "@/lib/scenes/types";
+import { isMerchantOwner } from "./access";
 
 type GetCurrentUser = (c: Context) => Promise<AppUser | null>;
 
@@ -57,7 +58,7 @@ export function sceneRoutes(getCurrentUser: GetCurrentUser) {
       const isEditor =
         flags.scene_editor &&
         !!user &&
-        (user.role === "saas_admin" || (user.role === "merchant" && product.merchantId === user.id));
+        (user.role === "saas_admin" || (user.role === "merchant" && isMerchantOwner(product.merchantId, user.id)));
 
       const visible = flags.customer_scene_view || isEditor;
       const scene = visible ? ((await scenesDb.get(id)) ?? EMPTY_SCENE) : EMPTY_SCENE;
@@ -81,7 +82,7 @@ export function sceneRoutes(getCurrentUser: GetCurrentUser) {
     const id = c.req.param("id");
     const product = await findProduct(id);
     if (!product) return fail(c, "Product not found.", 404);
-    if (user.role === "merchant" && product.merchantId !== user.id) {
+    if (user.role === "merchant" && !isMerchantOwner(product.merchantId, user.id)) {
       return fail(c, "You can only edit scenes of your own products.", 403);
     }
 

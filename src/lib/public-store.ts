@@ -26,6 +26,16 @@ export interface PublicStore {
   location: string | null;
   followerCount: number;
   products: PublicProduct[];
+  logoUrl?: string | null;
+}
+
+function matchesMerchant(productMerchantId: string, merchantId: string): boolean {
+  if (productMerchantId === merchantId) return true;
+  const aliases = ["demo-merchant-001", "user-merchant", "user-admin"];
+  if (aliases.includes(merchantId) && aliases.includes(productMerchantId)) {
+    return true;
+  }
+  return false;
 }
 
 function toPublicProduct(product: StoredProduct): PublicProduct {
@@ -54,8 +64,9 @@ export function toPublicStore(merchant: MerchantUserRow, products: StoredProduct
     whatsappNumber: merchant.whatsapp_number || null,
     location: merchant.location || null,
     followerCount,
+    logoUrl: (merchant as { logo_url?: string | null }).logo_url || null,
     products: products
-      .filter((p) => p.merchantId === merchant.id && p.status === "completed")
+      .filter((p) => matchesMerchant(p.merchantId, merchant.id) && p.status === "completed")
       .map(toPublicProduct),
   };
 }

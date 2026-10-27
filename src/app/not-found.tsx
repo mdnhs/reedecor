@@ -11,7 +11,7 @@ export default function NotFound() {
           href="/"
           className="bg-gradient-brand inline-flex rounded-full px-5 py-2 text-sm font-semibold text-white"
         >
-          Back to the studio
+          Back to the shop
         </Link>
       </div>
     </div>

@@ -19,19 +19,31 @@ export function getSupabaseServerClient(): SupabaseClient | null {
 }
 
 export class SupabaseStorageService implements StorageProvider {
-  private client: SupabaseClient | null;
+  private client: SupabaseClient | null = null;
 
   constructor() {
     this.client = getSupabaseServerClient();
   }
 
+  getClient(): SupabaseClient | null {
+    if (!this.client) {
+      this.client = getSupabaseServerClient();
+    }
+    return this.client;
+  }
+
+  isConfigured(): boolean {
+    return this.getClient() !== null;
+  }
+
   async ensureBucket(): Promise<boolean> {
-    if (!this.client) return false;
+    const client = this.getClient();
+    if (!client) return false;
     try {
-      const { data: buckets } = await this.client.storage.listBuckets();
+      const { data: buckets } = await client.storage.listBuckets();
       const exists = buckets?.some((b) => b.name === BUCKET_NAME);
       if (!exists) {
-        await this.client.storage.createBucket(BUCKET_NAME, {
+        await client.storage.createBucket(BUCKET_NAME, {
           public: true,
           fileSizeLimit: 52428800, // 50MB
         });
@@ -48,6 +60,7 @@ export class SupabaseStorageService implements StorageProvider {
     productId: string,
     viewType: "front" | "back" | "left" | "right" | "single"
   ): Promise<StorageUploadResult> {
+    const client = this.getClient();
     const ext = fileName.split(".").pop()?.toLowerCase() || "jpg";
     const path = `products/${productId}/${viewType}-${Date.now()}.${ext}`;
 
@@ -58,19 +71,24 @@ export class SupabaseStorageService implements StorageProvider {
         ? "image/webp"
         : "image/jpeg";
 
-    if (!this.client) {
-      const bytes = Buffer.isBuffer(file) ? file : Buffer.from(await (file as Blob).arrayBuffer());
-      return {
-        path,
-        publicUrl: `data:${contentType};base64,${bytes.toString("base64")}`,
-        sizeBytes: bytes.length,
-        mimeType: contentType,
-      };
+    if (!client) {
+      if (process.env.NODE_ENV === "test") {
+        const bytes = Buffer.isBuffer(file) ? file : Buffer.from(await (file as Blob).arrayBuffer());
+        return {
+          path,
+          publicUrl: `data:${contentType};base64,${bytes.toString("base64")}`,
+          sizeBytes: bytes.length,
+          mimeType: contentType,
+        };
+      }
+      throw new Error("Supabase Storage is not configured. Cannot upload product image.");
     }
 
     await this.ensureBucket();
 
-    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+    const buffer = Buffer.isBuffer(file) ? file : Buffer.from(await (file as Blob).arrayBuffer());
+
+    const { error } = await client.storage.from(BUCKET_NAME).upload(path, buffer, {
       contentType,
       upsert: true,
     });
@@ -81,14 +99,12 @@ export class SupabaseStorageService implements StorageProvider {
 
     const {
       data: { publicUrl },
-    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
-
-    const sizeBytes = file instanceof Blob ? file.size : Buffer.isBuffer(file) ? file.length : 0;
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     return {
       path,
       publicUrl,
-      sizeBytes,
+      sizeBytes: buffer.length,
       mimeType: contentType,
     };
   }
@@ -98,21 +114,25 @@ export class SupabaseStorageService implements StorageProvider {
     mimeType: string,
     productId: string
   ): Promise<StorageUploadResult> {
+    const client = this.getClient();
     const ext = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/webp" ? "webp" : "png";
     const path = `products/${productId}/thumbnail-${Date.now()}.${ext}`;
 
-    if (!this.client) {
-      return {
-        path,
-        publicUrl: `data:${mimeType};base64,${file.toString("base64")}`,
-        sizeBytes: file.length,
-        mimeType,
-      };
+    if (!client) {
+      if (process.env.NODE_ENV === "test") {
+        return {
+          path,
+          publicUrl: `data:${mimeType};base64,${file.toString("base64")}`,
+          sizeBytes: file.length,
+          mimeType,
+        };
+      }
+      throw new Error("Supabase Storage is not configured. Cannot upload thumbnail.");
     }
 
     await this.ensureBucket();
 
-    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+    const { error } = await client.storage.from(BUCKET_NAME).upload(path, file, {
       contentType: mimeType,
       upsert: true,
     });
@@ -123,9 +143,51 @@ export class SupabaseStorageService implements StorageProvider {
 
     const {
       data: { publicUrl },
-    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     return { path, publicUrl, sizeBytes: file.length, mimeType };
+  }
+
+  async uploadBase64Image(
+    dataUrl: string,
+    targetPathPrefix: string
+  ): Promise<StorageUploadResult> {
+    const client = this.getClient();
+    if (!client) {
+      throw new Error("Supabase Storage client is not configured; cannot upload base64 image to bucket.");
+    }
+
+    const match = /^data:([a-z0-9.+/-]+);base64,(.*)$/i.exec(dataUrl);
+    if (!match) {
+      throw new Error("Invalid base64 data URI format.");
+    }
+
+    const mimeType = match[1].toLowerCase();
+    const buffer = Buffer.from(match[2], "base64");
+    const ext = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+    const path = `${targetPathPrefix}.${ext}`;
+
+    await this.ensureBucket();
+
+    const { error } = await client.storage.from(BUCKET_NAME).upload(path, buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+    if (error) {
+      throw new Error(`Failed to upload base64 image to Supabase Storage: ${error.message}`);
+    }
+
+    const {
+      data: { publicUrl },
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
+
+    return {
+      path,
+      publicUrl,
+      sizeBytes: buffer.length,
+      mimeType,
+    };
   }
 
   async uploadAssetFile(
@@ -134,7 +196,8 @@ export class SupabaseStorageService implements StorageProvider {
     assetId: string,
     version: number
   ): Promise<StorageUploadResult> {
-    if (!this.client) {
+    const client = this.getClient();
+    if (!client) {
       throw new Error("Supabase storage is not configured; room assets need real storage.");
     }
 
@@ -143,7 +206,7 @@ export class SupabaseStorageService implements StorageProvider {
 
     await this.ensureBucket();
 
-    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+    const { error } = await client.storage.from(BUCKET_NAME).upload(path, file, {
       contentType: mimeType,
       upsert: true,
     });
@@ -154,14 +217,15 @@ export class SupabaseStorageService implements StorageProvider {
 
     const {
       data: { publicUrl },
-    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     return { path, publicUrl, sizeBytes: file.length, mimeType };
   }
 
   async removeAssetFiles(paths: string[]): Promise<void> {
-    if (!this.client || paths.length === 0) return;
-    await this.client.storage.from(BUCKET_NAME).remove(paths);
+    const client = this.getClient();
+    if (!client || paths.length === 0) return;
+    await client.storage.from(BUCKET_NAME).remove(paths);
   }
 
   async uploadModelFile(
@@ -170,8 +234,9 @@ export class SupabaseStorageService implements StorageProvider {
     productId: string
   ): Promise<StorageUploadResult> {
     const path = `models/${productId}/${fileName || "model.glb"}`;
+    const client = this.getClient();
 
-    if (!this.client) {
+    if (!client) {
       return {
         path,
         publicUrl: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/SheenChair/glTF-Binary/SheenChair.glb",
@@ -182,7 +247,7 @@ export class SupabaseStorageService implements StorageProvider {
 
     await this.ensureBucket();
 
-    const { error } = await this.client.storage.from(BUCKET_NAME).upload(path, file, {
+    const { error } = await client.storage.from(BUCKET_NAME).upload(path, file, {
       contentType: "model/gltf-binary",
       upsert: true,
     });
@@ -193,7 +258,7 @@ export class SupabaseStorageService implements StorageProvider {
 
     const {
       data: { publicUrl },
-    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     const sizeBytes = file instanceof Blob ? file.size : Buffer.isBuffer(file) ? file.length : 0;
 
@@ -206,33 +271,35 @@ export class SupabaseStorageService implements StorageProvider {
   }
 
   getPublicUrl(path: string): string {
-    if (!this.client) {
+    const client = this.getClient();
+    if (!client) {
       return path;
     }
     const {
       data: { publicUrl },
-    } = this.client.storage.from(BUCKET_NAME).getPublicUrl(path);
+    } = client.storage.from(BUCKET_NAME).getPublicUrl(path);
     return publicUrl;
   }
 
   async deleteProductAssets(productId: string): Promise<void> {
-    if (!this.client) return;
+    const client = this.getClient();
+    if (!client) return;
 
     try {
-      const { data: images } = await this.client.storage
+      const { data: images } = await client.storage
         .from(BUCKET_NAME)
         .list(`products/${productId}`);
       if (images && images.length > 0) {
-        await this.client.storage
+        await client.storage
           .from(BUCKET_NAME)
           .remove(images.map((img) => `products/${productId}/${img.name}`));
       }
 
-      const { data: models } = await this.client.storage
+      const { data: models } = await client.storage
         .from(BUCKET_NAME)
         .list(`models/${productId}`);
       if (models && models.length > 0) {
-        await this.client.storage
+        await client.storage
           .from(BUCKET_NAME)
           .remove(models.map((m) => `models/${productId}/${m.name}`));
       }

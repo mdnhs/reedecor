@@ -14,7 +14,6 @@ import {
   Store,
   type LucideIcon,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { ChartSkeleton, StatCardsSkeleton, TableSkeleton } from "@/components/ui/skeleton-patterns";
 import { StoredProduct } from "@/server/demo-store";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -71,7 +70,7 @@ export default function OverviewPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (isCustomer || isSaasAdmin) return;
@@ -85,7 +84,7 @@ export default function OverviewPage() {
     return () => {
       ignore = true;
     };
-  }, [isCustomer, isSaasAdmin]);
+  }, [user?.id, isCustomer, isSaasAdmin]);
 
   const canCreate = !isCustomer && generationOn;
   const storeHref = `/store/${user?.id || "demo-merchant-001"}`;
@@ -135,8 +134,7 @@ export default function OverviewPage() {
   const visibleActions = quickActions.filter((a) => a.show).slice(0, 4);
 
   return (
-    <DashboardLayout title="Home" subtitle="Furniture catalog, 3D models and generation activity">
-      <div className="grid gap-6 xl:grid-cols-3">
+    <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 min-w-0 xl:col-span-2">
           <section className="relative overflow-hidden rounded-3xl bg-linear-to-b from-white/40 to-white/0 px-4 pb-6 pt-16 text-center sm:pt-20">
             <Orb className="left-6 top-8 h-12 w-12 sm:left-14" />
@@ -266,6 +264,5 @@ export default function OverviewPage() {
           {loading ? <TableSkeleton /> : <DataTable products={products} />}
         </div>
       </div>
-    </DashboardLayout>
   );
 }

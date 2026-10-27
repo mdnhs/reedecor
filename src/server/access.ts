@@ -10,8 +10,20 @@ export function isStaff(user: AppUser | null): user is AppUser {
   return user?.role === "merchant" || user?.role === "saas_admin";
 }
 
+export const DEMO_MERCHANT_ALIASES = ["demo-merchant-001", "user-merchant", "user-admin"];
+
+export function isMerchantOwner(productMerchantId: string, userMerchantId: string): boolean {
+  if (productMerchantId === userMerchantId) return true;
+  if (isDemoMode()) {
+    if (DEMO_MERCHANT_ALIASES.includes(userMerchantId) && DEMO_MERCHANT_ALIASES.includes(productMerchantId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function canManageProduct(user: AppUser | null, product: { merchantId: string }): boolean {
   if (!user) return false;
   if (user.role === "saas_admin") return true;
-  return user.role === "merchant" && user.id === product.merchantId;
+  return user.role === "merchant" && isMerchantOwner(product.merchantId, user.id);
 }

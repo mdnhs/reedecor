@@ -28,6 +28,13 @@ export interface StorageProvider {
 
   removeAssetFiles(paths: string[]): Promise<void>;
 
+  uploadBase64Image?(
+    dataUrl: string,
+    targetPathPrefix: string
+  ): Promise<StorageUploadResult>;
+
+  isConfigured?(): boolean;
+
   uploadModelFile(
     file: Blob | Buffer,
     fileName: string,

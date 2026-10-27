@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -206,34 +205,28 @@ export default function AdminRbacPage() {
   };
 
   if (authLoading) {
-    return (
-      <DashboardLayout title="Users & roles">
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </DashboardLayout>
-    );
+    return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
 
   if (!isSaasAdmin) {
     return (
-      <DashboardLayout title="Users & roles" >
-        <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
-            <Lock className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
-            <p className="text-sm text-stone-500">
-              You are signed in as <strong>{currentUser?.name || "User"}</strong>.
-            </p>
-          </div>
-          {demoMode && (
-            <Button onClick={() => switchDemoRole("saas_admin")} className="gap-2 bg-gradient-brand text-white">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              <span>Switch to admin</span>
-            </Button>
-          )}
-        </Card>
-      </DashboardLayout>
+      <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
+          <Lock className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
+          <p className="text-sm text-stone-500">
+            You are signed in as <strong>{currentUser?.name || "User"}</strong>.
+          </p>
+        </div>
+        {demoMode && (
+          <Button onClick={() => switchDemoRole("saas_admin")} className="gap-2 bg-gradient-brand text-white">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            <span>Switch to admin</span>
+          </Button>
+        )}
+      </Card>
     );
   }
 
@@ -252,10 +245,7 @@ export default function AdminRbacPage() {
     "h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900 disabled:opacity-50";
 
   return (
-    <DashboardLayout
-      title="Users & roles"
-    >
-      <div className="max-w-6xl space-y-6">
+    <div className="max-w-6xl space-y-6">
         {notification && (
           <div
             role={notification.type === "error" ? "alert" : "status"}
@@ -509,6 +499,5 @@ export default function AdminRbacPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
   );
 }

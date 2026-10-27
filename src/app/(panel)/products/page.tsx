@@ -12,7 +12,6 @@ import {
   ExternalLink,
   Store,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +63,7 @@ export default function MyProductsPage() {
     return () => {
       ignore = true;
     };
-  }, [refreshKey]);
+  }, [user?.id, refreshKey]);
 
   const processingIds = products
     .filter((p) => p.status === "processing" || p.status === "queued")
@@ -180,11 +179,7 @@ export default function MyProductsPage() {
     searchQuery !== "" || selectedCategory !== "All" || selectedStatus !== "All";
 
   return (
-    <DashboardLayout
-      title="Furniture Products"
-      subtitle="Your 3D catalog"
-    >
-      <div className="max-w-5xl space-y-6">
+    <div className="max-w-5xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search
@@ -432,6 +427,5 @@ export default function MyProductsPage() {
           </ul>
         )}
       </div>
-    </DashboardLayout>
   );
 }

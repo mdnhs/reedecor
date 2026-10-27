@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -297,78 +296,57 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
   };
 
   if (!featuresLoaded) {
-    return (
-      <DashboardLayout title="Create 3D Model" subtitle="Loading">
-        <FormSkeleton />
-      </DashboardLayout>
-    );
+    return <FormSkeleton />;
   }
 
   if (!generationOn) {
     return (
-      <DashboardLayout
-        title="Create 3D Model — Turned Off"
-        subtitle="3D model generation is currently unavailable"
-      >
-        <Card className="max-w-lg mx-auto my-12 border-stone-200 bg-stone-50 text-center p-8 space-y-3">
-          <ShieldAlert className="h-7 w-7 mx-auto text-stone-500" />
-          <h2 className="text-lg font-bold text-stone-900">3D model generation is turned off</h2>
-          <p className="text-xs text-stone-600">{featureOffMessage} Existing models can still be viewed.</p>
-        </Card>
-      </DashboardLayout>
+      <Card className="max-w-lg mx-auto my-12 border-stone-200 bg-stone-50 text-center p-8 space-y-3">
+        <ShieldAlert className="h-7 w-7 mx-auto text-stone-500" />
+        <h2 className="text-lg font-bold text-stone-900">3D model generation is turned off</h2>
+        <p className="text-xs text-stone-600">{featureOffMessage} Existing models can still be viewed.</p>
+      </Card>
     );
   }
 
   if (isCustomer) {
     return (
-      <DashboardLayout
-        title="Create 3D Model — Access Restricted"
-        subtitle="Merchant account required to initiate 3D reconstructions"
-      >
-        <Card className="max-w-lg mx-auto my-12 border-amber-200 bg-amber-50/50 text-center p-8 space-y-5">
-          <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center">
-            <ShieldAlert className="h-7 w-7" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-lg font-bold text-stone-900">
-              Customer Account (View Only)
-            </h2>
-            <p className="text-xs text-stone-600">
-              Customer accounts have view-only access to browse the interactive 3D catalog and inspect product dimensions. Uploading 4-angle photographs and generating 3D models via Meshy AI requires a <strong>Merchant</strong> or <strong>SaaS Admin</strong> account.
-            </p>
-          </div>
-          <div className="pt-2 flex items-center justify-center gap-3">
-            {demoMode && (
-            <Button
-              onClick={() => switchDemoRole("merchant")}
-              className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
-            >
-              <Store className="h-4 w-4" />
-              <span>Switch to Merchant Account</span>
-            </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => router.push("/products")}
-              className="text-xs"
-            >
-              Browse Catalog
-            </Button>
-          </div>
-        </Card>
-      </DashboardLayout>
+      <Card className="max-w-lg mx-auto my-12 border-amber-200 bg-amber-50/50 text-center p-8 space-y-5">
+        <div className="h-14 w-14 rounded-2xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-lg font-bold text-stone-900">
+            Customer Account (View Only)
+          </h2>
+          <p className="text-xs text-stone-600">
+            Customer accounts have view-only access to browse the interactive 3D catalog and inspect product dimensions. Uploading 4-angle photographs and generating 3D models via Meshy AI requires a <strong>Merchant</strong> or <strong>SaaS Admin</strong> account.
+          </p>
+        </div>
+        <div className="pt-2 flex items-center justify-center gap-3">
+          {demoMode && (
+          <Button
+            onClick={() => switchDemoRole("merchant")}
+            className="gap-2 bg-amber-700 hover:bg-amber-800 text-white shadow-xs"
+          >
+            <Store className="h-4 w-4" />
+            <span>Switch to Merchant Account</span>
+          </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => router.push("/products")}
+            className="text-xs"
+          >
+            Browse Catalog
+          </Button>
+        </div>
+      </Card>
     );
   }
 
   return (
-    <DashboardLayout
-      title="Create 3D Model"
-      subtitle={
-        generationMode === "image_to_3d"
-          ? "Upload one product photograph to generate a 3D GLB model"
-          : "Upload 4-angle product photographs to generate a 3D GLB model"
-      }
-    >
+    <>
       <form onSubmit={handleOpenReview} className="mx-auto max-w-3xl space-y-8 pb-12">
         {error && (
           <div role="alert" className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
@@ -617,7 +595,7 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
           </Card>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }
 

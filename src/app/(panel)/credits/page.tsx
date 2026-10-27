@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { ShieldAlert, Store, Coins, Receipt, CheckCircle2, XCircle } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatCardsSkeleton, TableSkeleton } from "@/components/ui/skeleton-patterns";
@@ -36,7 +35,7 @@ interface UsageData {
 }
 
 export default function CreditsPage() {
-  const { isCustomer, demoMode, switchDemoRole } = useAuth();
+  const { user, isCustomer, demoMode, switchDemoRole } = useAuth();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,32 +62,29 @@ export default function CreditsPage() {
     return () => {
       ignore = true;
     };
-  }, [isCustomer]);
+  }, [user?.id, isCustomer]);
 
   if (isCustomer) {
     return (
-      <DashboardLayout title="Credits" subtitle="Merchants only">
-        <div className="glass-panel studio-card-shadow mx-auto my-12 max-w-lg space-y-4 rounded-2xl p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
-            <ShieldAlert className="h-6 w-6" />
-          </div>
-          <h2 className="font-display text-lg font-bold text-stone-900">Merchants only</h2>
-          {demoMode && (
-            <Button onClick={() => switchDemoRole("merchant")} className="gap-2 bg-gradient-brand text-white">
-              <Store className="h-4 w-4" />
-              <span>Switch to merchant</span>
-            </Button>
-          )}
+      <div className="glass-panel studio-card-shadow mx-auto my-12 max-w-lg space-y-4 rounded-2xl p-8 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
+          <ShieldAlert className="h-6 w-6" />
         </div>
-      </DashboardLayout>
+        <h2 className="font-display text-lg font-bold text-stone-900">Merchants only</h2>
+        {demoMode && (
+          <Button onClick={() => switchDemoRole("merchant")} className="gap-2 bg-gradient-brand text-white">
+            <Store className="h-4 w-4" />
+            <span>Switch to merchant</span>
+          </Button>
+        )}
+      </div>
     );
   }
 
   const usedPercent = data && data.allowance > 0 ? Math.min(100, (data.used / data.allowance) * 100) : 0;
 
   return (
-    <DashboardLayout title="Credits" subtitle="Balance and usage">
-      <div className="mx-auto max-w-3xl space-y-12 pb-12">
+    <div className="mx-auto max-w-3xl space-y-12 pb-12">
         <section aria-labelledby="balance-title" className="space-y-4">
           <h2 id="balance-title" className="font-display text-lg font-bold text-stone-900">
             Credits
@@ -181,6 +177,5 @@ export default function CreditsPage() {
           )}
         </section>
       </div>
-    </DashboardLayout>
   );
 }

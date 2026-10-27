@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { inMemoryStore, StoredProduct } from "./demo-store";
 import { supabaseDb } from "@/lib/supabase/db";
+import type { PublicStore } from "@/lib/public-store";
 import { meshyClient } from "@/lib/meshy/client";
 import { storageService } from "@/lib/storage/supabase-storage";
 import { authService, AppUser, UserRole } from "@/lib/supabase/auth-service";
@@ -11,7 +12,7 @@ import { assetRoutes } from "./asset-routes";
 import { sceneRoutes } from "./scene-routes";
 import { featureRoutes } from "./feature-routes";
 import { featureFlags, featureOffResponse, requireFeature } from "./feature-service";
-import { canManageProduct, isDemoMode, isStaff, PUBLIC_REGISTRATION_ROLES } from "./access";
+import { canManageProduct, isDemoMode, isStaff, isMerchantOwner, PUBLIC_REGISTRATION_ROLES } from "./access";
 import { createFailureLimiter } from "./rate-limit";
 import { decodeImageDataUrl, IMAGE_EXTENSIONS, MAX_PRODUCT_REQUEST_BYTES } from "./product-images";
 import { bodyLimit } from "hono/body-limit";
@@ -73,7 +74,7 @@ async function allProducts(): Promise<StoredProduct[]> {
 }
 
 async function merchantProducts(merchantId: string): Promise<StoredProduct[]> {
-  return (await allProducts()).filter((p) => p.merchantId === merchantId);
+  return (await allProducts()).filter((p) => isMerchantOwner(p.merchantId, merchantId));
 }
 
 const staffOnly: MiddlewareHandler = async (c, next) => {
@@ -456,7 +457,7 @@ app.get("/products", async (c) => {
     currentUser.role === "saas_admin"
       ? products
       : currentUser.role === "merchant"
-      ? products.filter((p) => p.merchantId === currentUser.id)
+      ? products.filter((p) => isMerchantOwner(p.merchantId, currentUser.id))
       : products.filter((p) => p.status === "completed");
   return c.json({ success: true, data: visible });
 });
@@ -517,6 +518,9 @@ app.post("/products", requireFeature("model_generation"), staffOnly, productBody
       if ("error" in file) continue;
       const fileName = `${img.viewType}.${IMAGE_EXTENSIONS[file.mimeType]}`;
       const upload = await storageService.uploadProductImage(file.buffer, fileName, id, img.viewType);
+      if (upload.publicUrl.startsWith("data:")) {
+        throw new Error("Storage service returned inline data instead of Supabase Storage bucket URL");
+      }
       images.push({
         id: `img-${id}-${idx}`,
         viewType: img.viewType,
@@ -528,6 +532,7 @@ app.post("/products", requireFeature("model_generation"), staffOnly, productBody
       });
     }
     await supabaseDb.createProduct(newProduct);
+    publicStoreCache.clear();
   } catch (err) {
     await storageService
       .removeAssetFiles(images.map((img) => img.storagePath))
@@ -561,8 +566,12 @@ app.post("/products/:id/thumbnail", async (c) => {
 
   try {
     const upload = await storageService.uploadProductThumbnail(buffer, mimeType, id);
+    if (upload.publicUrl.startsWith("data:")) {
+      throw new Error("Storage service returned inline data instead of Supabase Storage bucket URL");
+    }
     await supabaseDb.updateProductThumbnail(id, upload.publicUrl);
     inMemoryStore.update(id, (p) => ({ ...p, thumbnailUrl: upload.publicUrl }));
+    publicStoreCache.clear();
     return c.json({ success: true, data: { thumbnailUrl: upload.publicUrl } });
   } catch (err) {
     console.error("Thumbnail upload failed:", err);
@@ -581,6 +590,7 @@ app.delete("/products/:id", async (c) => {
   await storageService.deleteProductAssets(id);
   await supabaseDb.deleteProduct(id);
   inMemoryStore.delete(id);
+  publicStoreCache.clear();
 
   return c.json({ success: true, message: "Product deleted successfully" });
 });
@@ -811,17 +821,25 @@ app.patch("/admin/settings", zValidator("json", updateSystemSettingsSchema), asy
 
 // ---------------------------------------------------------------------------
 // Merchant Public Storefront & Settings Endpoints
-// ---------------------------------------------------------------------------
+// In-memory cache for public storefronts (30s TTL for instant customer loads)
+const publicStoreCache = new Map<string, { profile: PublicStore; expiresAt: number }>();
 
-// 1. Get Merchant Public Profile & Catalog (Publicly Accessible)
+// 1. Get Merchant Public Profile & Catalog (Publicly Accessible with 30s cache)
 app.get("/merchants/:id/public", async (c) => {
   const merchantId = c.req.param("id");
+  const now = Date.now();
+  const cached = publicStoreCache.get(merchantId);
+  if (cached && now < cached.expiresAt) {
+    return c.json({ success: true, data: cached.profile });
+  }
+
   const profile = await supabaseDb.getMerchantPublicProfile(merchantId);
 
   if (!profile) {
     return c.json({ success: false, error: "Merchant not found" }, 404);
   }
 
+  publicStoreCache.set(merchantId, { profile, expiresAt: now + 30_000 });
   return c.json({ success: true, data: profile });
 });
 
@@ -859,6 +877,7 @@ app.patch("/merchants/profile", zValidator("json", updateMerchantSchema), async 
   if (!res.success) {
     return c.json({ success: false, error: "Failed to update merchant profile in database" }, 500);
   }
+  publicStoreCache.clear();
   return c.json({ success: true, message: "Merchant profile updated successfully" });
 });
 

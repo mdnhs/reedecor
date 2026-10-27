@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, ShieldCheck, Store, ShoppingBag, ArrowRight } from "lucide-react";
+import { Sparkles, ShieldCheck, Store, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { safeNextPath } from "@/lib/auth/route-guard";
 
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"merchant" | "customer">("merchant");
+  const selectedRole = "merchant";
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -68,7 +68,6 @@ export default function LoginPage() {
   const demoRoles = [
     { role: "saas_admin" as const, label: "SaaS Admin", hint: "Manage platform", Icon: ShieldCheck },
     { role: "merchant" as const, label: "Merchant", hint: "Create 3D products", Icon: Store },
-    { role: "customer" as const, label: "Customer", hint: "Browse in 3D", Icon: ShoppingBag },
   ];
 
   return (
@@ -152,17 +151,8 @@ export default function LoginPage() {
             </div>
 
             {mode === "register" && (
-              <div className="space-y-1.5">
-                <label htmlFor="login-role" className="text-sm font-medium text-stone-700">Role</label>
-                <select
-                  id="login-role"
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as "merchant" | "customer")}
-                  className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900"
-                >
-                  <option value="merchant">Merchant</option>
-                  <option value="customer">Customer</option>
-                </select>
+              <div className="rounded-lg bg-stone-50 border border-stone-200/80 px-3 py-2 text-xs text-stone-600">
+                Account Type: <span className="font-semibold text-stone-900">Furniture Merchant</span>
               </div>
             )}
 

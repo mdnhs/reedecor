@@ -28,11 +28,17 @@ import { useAuth } from "@/lib/auth/auth-context";
 import type { UserRole } from "@/lib/supabase/auth-service";
 import { useFeature } from "@/lib/features/features-context";
 import { isPublicPath } from "@/lib/auth/route-guard";
+import {
+  PanelLayoutContext,
+  getRouteMeta,
+  useDashboardHeader,
+} from "@/components/layout/dashboard-context";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+  forceRoot?: boolean;
 }
 
 interface NavItem {
@@ -47,7 +53,6 @@ interface NavItem {
 const ROLE_OPTIONS: { role: UserRole; label: string }[] = [
   { role: "saas_admin", label: "Admin" },
   { role: "merchant", label: "Merchant" },
-  { role: "customer", label: "Customer" },
 ];
 
 function isActivePath(pathname: string | null, href: string) {
@@ -97,13 +102,41 @@ function NavLink({
   );
 }
 
-export function DashboardLayout({ children, title = "Dashboard", subtitle }: DashboardLayoutProps) {
+export function DashboardLayout({
+  children,
+  title = "Dashboard",
+  subtitle,
+  forceRoot = false,
+}: DashboardLayoutProps) {
+  const isInsidePanelLayout = React.useContext(PanelLayoutContext);
+  const headerMeta = React.useMemo(() => {
+    if (isInsidePanelLayout && !forceRoot && title !== "Dashboard") {
+      return { title, subtitle };
+    }
+    return undefined;
+  }, [isInsidePanelLayout, forceRoot, title, subtitle]);
+  const headerCtx = useDashboardHeader(headerMeta);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, isLoading, isSaasAdmin, isCustomer, demoMode, logout, switchDemoRole } = useAuth();
   const generationOn = useFeature("model_generation");
+
+  // Prevent duplicate nested layouts if a child page also calls DashboardLayout
+  if (isInsidePanelLayout && !forceRoot) {
+    return <>{children}</>;
+  }
+
+  const routeMeta = getRouteMeta(pathname);
+  const displayTitle =
+    title !== "Dashboard"
+      ? title
+      : headerCtx?.customHeader?.title || routeMeta.title;
+  const displaySubtitle =
+    subtitle !== undefined
+      ? subtitle
+      : headerCtx?.customHeader?.subtitle ?? routeMeta.subtitle;
 
   const merchantStoreId = user?.id || "demo-merchant-001";
   const canCreate = !isCustomer && generationOn;
@@ -307,8 +340,8 @@ export function DashboardLayout({ children, title = "Dashboard", subtitle }: Das
               <PanelLeft className="h-4 w-4" />
             </button>
             <div className="min-w-0">
-              <h1 className="font-display text-base sm:text-lg font-bold tracking-tight truncate">{title}</h1>
-              {subtitle && <p className="hidden lg:block text-xs text-stone-500 truncate">{subtitle}</p>}
+              <h1 suppressHydrationWarning className="font-display text-base sm:text-lg font-bold tracking-tight truncate">{displayTitle}</h1>
+              {displaySubtitle && <p suppressHydrationWarning className="hidden lg:block text-xs text-stone-500 truncate">{displaySubtitle}</p>}
             </div>
           </div>
 

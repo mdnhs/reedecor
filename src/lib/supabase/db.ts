@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { resolveSupabaseConfig } from "./config";
 import { StoredProduct } from "@/server/demo-store";
 import { toPublicStore, type PublicStore } from "@/lib/public-store";
+import { storageService } from "@/lib/storage/supabase-storage";
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -36,8 +37,15 @@ export class SupabaseDbService {
     this.client = getSupabaseClient();
   }
 
+  getClient(): SupabaseClient | null {
+    if (!this.client) {
+      this.client = getSupabaseClient();
+    }
+    return this.client;
+  }
+
   isConfigured(): boolean {
-    return this.client !== null;
+    return this.getClient() !== null;
   }
 
   async getAllProducts(): Promise<StoredProduct[]> {
@@ -45,86 +53,39 @@ export class SupabaseDbService {
 
     const { data: productsData, error: prodErr } = await this.client
       .from("products")
-      .select("*")
+      .select("*, product_images(*), generation_attempts(*)")
       .order("created_at", { ascending: false });
 
     if (prodErr) throw new Error(prodErr.message);
     if (!productsData || productsData.length === 0) return [];
 
-    {
+    return productsData.map((p) => {
+      const imagesData = (p.product_images || []) as Array<{
+        id: string;
+        view_type: "front" | "back" | "left" | "right" | "single";
+        public_url: string;
+        storage_path: string;
+        file_name: string;
+        mime_type: string;
+        file_size_bytes: number;
+      }>;
+      const attemptsData = (p.generation_attempts || []) as Array<{
+        id: string;
+        provider: "meshy" | "tripo" | "mock";
+        provider_task_id: string | null;
+        status: "pending" | "processing" | "completed" | "failed";
+        model_url: string | null;
+        credit_cost_estimate: number;
+        error_code: string | null;
+        error_message: string | null;
+        created_at: string;
+        completed_at: string | null;
+      }>;
 
-      // Fetch related images and attempts
-      const { data: imagesData } = await this.client.from("product_images").select("*");
-      const { data: attemptsData } = await this.client
-        .from("generation_attempts")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      return productsData.map((p) => ({
-        id: p.id,
-        merchantId: p.merchant_id,
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        widthMm: p.width_mm,
-        depthMm: p.depth_mm,
-        heightMm: p.height_mm,
-        priceBdt: Number(p.price_bdt || 0),
-        status: p.status,
-        thumbnailUrl: p.thumbnail_url ?? null,
-        createdAt: p.created_at,
-        updatedAt: p.updated_at,
-        images: (imagesData || [])
-          .filter((img) => img.product_id === p.id)
-          .map((img) => ({
-            id: img.id,
-            viewType: img.view_type,
-            publicUrl: img.public_url,
-            storagePath: img.storage_path,
-            fileName: img.file_name,
-            mimeType: img.mime_type,
-            fileSizeBytes: img.file_size_bytes,
-          })),
-        generationAttempts: (attemptsData || [])
-          .filter((att) => att.product_id === p.id)
-          .map((att) => ({
-            id: att.id,
-            provider: att.provider,
-            providerTaskId: att.provider_task_id,
-            status: att.status,
-            modelUrl: att.model_url,
-            creditCostEstimate: Number(att.credit_cost_estimate || 20),
-            errorCode: att.error_code,
-            errorMessage: att.error_message,
-            createdAt: att.created_at,
-            completedAt: att.completed_at,
-          })),
-      }));
-    }
-  }
-
-  async getProductById(id: string): Promise<StoredProduct | null> {
-    if (!this.client) return null;
-
-    try {
-      const { data: p, error } = await this.client
-        .from("products")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error || !p) return null;
-
-      const { data: imagesData } = await this.client
-        .from("product_images")
-        .select("*")
-        .eq("product_id", id);
-
-      const { data: attemptsData } = await this.client
-        .from("generation_attempts")
-        .select("*")
-        .eq("product_id", id)
-        .order("created_at", { ascending: false });
+      // Sort generation attempts descending by created_at
+      const sortedAttempts = [...attemptsData].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
       return {
         id: p.id,
@@ -140,7 +101,7 @@ export class SupabaseDbService {
         thumbnailUrl: p.thumbnail_url ?? null,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
-        images: (imagesData || []).map((img) => ({
+        images: imagesData.map((img) => ({
           id: img.id,
           viewType: img.view_type,
           publicUrl: img.public_url,
@@ -149,11 +110,88 @@ export class SupabaseDbService {
           mimeType: img.mime_type,
           fileSizeBytes: img.file_size_bytes,
         })),
-        generationAttempts: (attemptsData || []).map((att) => ({
+        generationAttempts: sortedAttempts.map((att) => ({
           id: att.id,
           provider: att.provider,
           providerTaskId: att.provider_task_id,
-          status: att.status,
+          status: att.status === "pending" ? "queued" : att.status,
+          modelUrl: att.model_url,
+          creditCostEstimate: Number(att.credit_cost_estimate || 20),
+          errorCode: att.error_code,
+          errorMessage: att.error_message,
+          createdAt: att.created_at,
+          completedAt: att.completed_at,
+        })),
+      };
+    });
+  }
+
+  async getProductById(id: string): Promise<StoredProduct | null> {
+    if (!this.client) return null;
+
+    try {
+      const { data: p, error } = await this.client
+        .from("products")
+        .select("*, product_images(*), generation_attempts(*)")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error || !p) return null;
+
+      const imagesData = (p.product_images || []) as Array<{
+        id: string;
+        view_type: "front" | "back" | "left" | "right" | "single";
+        public_url: string;
+        storage_path: string;
+        file_name: string;
+        mime_type: string;
+        file_size_bytes: number;
+      }>;
+      const attemptsData = (p.generation_attempts || []) as Array<{
+        id: string;
+        provider: "meshy" | "tripo" | "mock";
+        provider_task_id: string | null;
+        status: "pending" | "processing" | "completed" | "failed";
+        model_url: string | null;
+        credit_cost_estimate: number;
+        error_code: string | null;
+        error_message: string | null;
+        created_at: string;
+        completed_at: string | null;
+      }>;
+
+      const sortedAttempts = [...attemptsData].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      return {
+        id: p.id,
+        merchantId: p.merchant_id,
+        name: p.name,
+        category: p.category,
+        description: p.description,
+        widthMm: p.width_mm,
+        depthMm: p.depth_mm,
+        heightMm: p.height_mm,
+        priceBdt: Number(p.price_bdt || 0),
+        status: p.status,
+        thumbnailUrl: p.thumbnail_url ?? null,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+        images: imagesData.map((img) => ({
+          id: img.id,
+          viewType: img.view_type,
+          publicUrl: img.public_url,
+          storagePath: img.storage_path,
+          fileName: img.file_name,
+          mimeType: img.mime_type,
+          fileSizeBytes: img.file_size_bytes,
+        })),
+        generationAttempts: sortedAttempts.map((att) => ({
+          id: att.id,
+          provider: att.provider,
+          providerTaskId: att.provider_task_id,
+          status: att.status === "pending" ? "queued" : att.status,
           modelUrl: att.model_url,
           creditCostEstimate: Number(att.credit_cost_estimate || 20),
           errorCode: att.error_code,
@@ -169,9 +207,29 @@ export class SupabaseDbService {
   }
 
   async createProduct(product: StoredProduct): Promise<void> {
-    if (!this.client) return;
+    const client = this.getClient();
+    if (!client) return;
 
-    const { error } = await this.client.from("products").insert({
+    let finalThumbnailUrl = product.thumbnailUrl;
+    if (finalThumbnailUrl && (finalThumbnailUrl.startsWith("data:") || finalThumbnailUrl.length > 2000)) {
+      console.warn(`[SupabaseDb] Intercepted base64 thumbnail for product ${product.id}. Auto-uploading to storage bucket...`);
+      try {
+        if (storageService.uploadBase64Image) {
+          const upload = await storageService.uploadBase64Image(
+            finalThumbnailUrl,
+            `products/${product.id}/thumbnail-${Date.now()}`
+          );
+          finalThumbnailUrl = upload.publicUrl;
+        } else {
+          finalThumbnailUrl = null;
+        }
+      } catch (err) {
+        console.error("[SupabaseDb] Failed to upload thumbnail to bucket:", err);
+        finalThumbnailUrl = null;
+      }
+    }
+
+    const { error } = await client.from("products").insert({
       id: product.id,
       merchant_id: product.merchantId,
       name: product.name,
@@ -182,38 +240,72 @@ export class SupabaseDbService {
       height_mm: product.heightMm,
       price_bdt: product.priceBdt,
       status: product.status,
+      thumbnail_url: finalThumbnailUrl,
       created_at: product.createdAt,
       updated_at: product.updatedAt,
     });
     if (error) throw new Error(error.message);
 
     if (product.images.length > 0) {
-      const { error: imageError } = await this.client.from("product_images").insert(
-        product.images.map((img) => ({
-          id: img.id,
-          product_id: product.id,
-          view_type: img.viewType,
-          storage_path: img.storagePath,
-          public_url: img.publicUrl,
-          file_name: img.fileName,
-          mime_type: img.mimeType,
-          file_size_bytes: img.fileSizeBytes,
-          created_at: new Date().toISOString(),
-        }))
+      // Safety guard: ensure NO base64 image data is ever stored in database columns.
+      // Auto-upload any base64 data to Supabase Storage bucket first.
+      const processedImages = await Promise.all(
+        product.images.map(async (img, idx) => {
+          let publicUrl = img.publicUrl;
+          let storagePath = img.storagePath;
+
+          if (publicUrl && (publicUrl.startsWith("data:") || publicUrl.length > 2000)) {
+            console.warn(`[SupabaseDb] Intercepted base64 image data URI for ${img.id}. Auto-uploading to Supabase Storage bucket...`);
+            if (storageService.uploadBase64Image) {
+              try {
+                const upload = await storageService.uploadBase64Image(
+                  publicUrl,
+                  `products/${product.id}/${img.viewType || "image"}-${Date.now()}-${idx}`
+                );
+                publicUrl = upload.publicUrl;
+                storagePath = upload.path;
+              } catch (uploadErr) {
+                console.error("[SupabaseDb] Failed to upload base64 image to bucket:", uploadErr);
+                throw new Error(
+                  "Image data cannot be stored directly in database column. Supabase storage upload failed: " +
+                    (uploadErr instanceof Error ? uploadErr.message : String(uploadErr))
+                );
+              }
+            } else {
+              throw new Error("Base64 image data cannot be written to database column without storage configured.");
+            }
+          }
+
+          return {
+            id: img.id,
+            product_id: product.id,
+            view_type: img.viewType,
+            storage_path: storagePath || `products/${product.id}/${img.viewType || "single"}.jpg`,
+            public_url: publicUrl,
+            file_name: img.fileName,
+            mime_type: img.mimeType,
+            file_size_bytes: img.fileSizeBytes,
+            created_at: new Date().toISOString(),
+          };
+        })
       );
+
+      const { error: imageError } = await client.from("product_images").insert(processedImages);
       if (imageError) throw new Error(imageError.message);
     }
   }
 
   async deleteProduct(id: string): Promise<void> {
-    if (!this.client) return;
-    const { error } = await this.client.from("products").delete().eq("id", id);
+    const client = this.getClient();
+    if (!client) return;
+    const { error } = await client.from("products").delete().eq("id", id);
     if (error) throw new Error(error.message);
   }
 
   async updateProductStatus(id: string, status: StoredProduct["status"]): Promise<void> {
-    if (!this.client) return;
-    const { error } = await this.client
+    const client = this.getClient();
+    if (!client) return;
+    const { error } = await client
       .from("products")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id);
@@ -221,10 +313,34 @@ export class SupabaseDbService {
   }
 
   async updateProductThumbnail(id: string, thumbnailUrl: string): Promise<void> {
-    if (!this.client) return;
-    const { error } = await this.client
+    const client = this.getClient();
+    if (!client) return;
+
+    let finalThumbnailUrl = thumbnailUrl;
+    if (thumbnailUrl && (thumbnailUrl.startsWith("data:") || thumbnailUrl.length > 2000)) {
+      console.warn(`[SupabaseDb] Intercepted base64 thumbnail for product ${id}. Auto-uploading to storage bucket...`);
+      if (storageService.uploadBase64Image) {
+        try {
+          const upload = await storageService.uploadBase64Image(
+            thumbnailUrl,
+            `products/${id}/thumbnail-${Date.now()}`
+          );
+          finalThumbnailUrl = upload.publicUrl;
+        } catch (uploadErr) {
+          console.error("[SupabaseDb] Failed to upload thumbnail to bucket:", uploadErr);
+          throw new Error(
+            "Thumbnail base64 cannot be stored in database column. Supabase storage upload failed: " +
+              (uploadErr instanceof Error ? uploadErr.message : String(uploadErr))
+          );
+        }
+      } else {
+        throw new Error("Base64 thumbnail cannot be written to database column without storage configured.");
+      }
+    }
+
+    const { error } = await client
       .from("products")
-      .update({ thumbnail_url: thumbnailUrl, updated_at: new Date().toISOString() })
+      .update({ thumbnail_url: finalThumbnailUrl, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw new Error(error.message);
   }

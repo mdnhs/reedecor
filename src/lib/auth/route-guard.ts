@@ -1,7 +1,9 @@
+const PUBLIC_EXACT = ["/login", "/store", "/viewer"];
 const PUBLIC_PREFIXES = ["/store/", "/viewer/"];
 
 export function isPublicPath(pathname: string): boolean {
-  return pathname === "/login" || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  if (PUBLIC_EXACT.includes(pathname)) return true;
+  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
 export function safeNextPath(raw: string | null): string {

@@ -128,3 +128,5 @@ export function ViewerSkeleton() {
     </LoadingRegion>
   );
 }
+
+export { StorefrontSkeleton } from "@/components/store/storefront-skeleton";

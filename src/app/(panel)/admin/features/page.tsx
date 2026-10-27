@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Lock } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,39 +71,32 @@ export default function AdminFeaturesPage() {
   );
 
   if (authLoading) {
-    return (
-      <DashboardLayout title="Features">
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </DashboardLayout>
-    );
+    return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
 
   if (!isSaasAdmin) {
     return (
-      <DashboardLayout title="Features" >
-        <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
-            <Lock className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
-            <p className="text-sm text-stone-500">
-              You are signed in as <strong>{user?.name || "User"}</strong>.
-            </p>
-          </div>
-          {demoMode && (
-            <Button onClick={() => switchDemoRole("saas_admin")} className="bg-gradient-brand text-white">
-              Switch to admin
-            </Button>
-          )}
-        </Card>
-      </DashboardLayout>
+      <Card className="mx-auto my-12 max-w-md space-y-4 p-6 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-600">
+          <Lock className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="font-display text-lg font-bold text-stone-900">Admins only</h2>
+          <p className="text-sm text-stone-500">
+            You are signed in as <strong>{user?.name || "User"}</strong>.
+          </p>
+        </div>
+        {demoMode && (
+          <Button onClick={() => switchDemoRole("saas_admin")} className="bg-gradient-brand text-white">
+            Switch to admin
+          </Button>
+        )}
+      </Card>
     );
   }
 
   return (
-    <DashboardLayout title="Features" >
-      <div className="max-w-3xl space-y-8">
+    <div className="max-w-3xl space-y-8">
         {error && (
           <div role="alert" className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -173,6 +165,5 @@ export default function AdminFeaturesPage() {
           })
         )}
       </div>
-    </DashboardLayout>
   );
 }
