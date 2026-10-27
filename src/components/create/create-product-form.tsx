@@ -11,10 +11,9 @@ import {
   CheckCircle2,
   ArrowRight,
   Info,
-  Lightbulb,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +38,7 @@ interface ImageSlot {
 const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
   front: {
     viewType: "front",
-    title: "1. Front Angle",
+    title: "Front",
     description: "Direct head-on view of the furniture piece.",
     file: null,
     previewUrl: null,
@@ -47,7 +46,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
   },
   back: {
     viewType: "back",
-    title: "2. Back Angle",
+    title: "Back",
     description: "Reverse perspective showing back detailing.",
     file: null,
     previewUrl: null,
@@ -55,7 +54,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
   },
   left: {
     viewType: "left",
-    title: "3. Left Side",
+    title: "Left",
     description: "Full left profile view.",
     file: null,
     previewUrl: null,
@@ -63,7 +62,7 @@ const INITIAL_SLOTS: Record<AngleView, ImageSlot> = {
   },
   right: {
     viewType: "right",
-    title: "4. Right Side",
+    title: "Right",
     description: "Full right profile view under identical lighting.",
     file: null,
     previewUrl: null,
@@ -85,9 +84,9 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
   const [description, setDescription] = useState("");
   const [priceBdt, setPriceBdt] = useState("");
   const [dimensionUnit, setDimensionUnit] = useState<"cm" | "mm">("cm");
-  const [width, setWidth] = useState("85");
-  const [depth, setDepth] = useState("75");
-  const [height, setHeight] = useState("82");
+  const [width, setWidth] = useState("");
+  const [depth, setDepth] = useState("");
+  const [height, setHeight] = useState("");
 
   const generationMode = mode;
 
@@ -194,6 +193,14 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
     generationMode === "image_to_3d"
       ? slots.front.dataUrl !== null
       : Object.values(slots).every((s) => s.dataUrl !== null);
+
+  const photoTotal = generationMode === "image_to_3d" ? 1 : 4;
+  const photoCount = generationMode === "image_to_3d" ? (slots.front.dataUrl ? 1 : 0) : Object.values(slots).filter((s) => s.dataUrl).length;
+  const missingHint = !allImagesUploaded
+    ? `Add ${photoTotal - photoCount} more ${photoTotal - photoCount === 1 ? "photo" : "photos"} to continue.`
+    : !name.trim()
+    ? "Enter a product name to continue."
+    : null;
 
   const handleOpenReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -362,409 +369,277 @@ export function CreateProductForm({ mode }: { mode: GenerationMode }) {
           : "Upload 4-angle product photographs to generate a 3D GLB model"
       }
     >
-      <form onSubmit={handleOpenReview} className="max-w-5xl space-y-8 pb-12">
-        {/* Error Alert */}
+      <form onSubmit={handleOpenReview} className="mx-auto max-w-3xl space-y-8 pb-12">
         {error && (
-          <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/80 text-rose-800 text-sm flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
+          <div role="alert" className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
-
-        {/* Duplicate Angle Warning */}
         {duplicateWarning && (
-          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-800 text-sm flex items-center gap-3">
-            <Info className="h-5 w-5 shrink-0 text-amber-600" />
+          <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <Info className="h-4 w-4 shrink-0 text-amber-600" />
             <span>{duplicateWarning}</span>
           </div>
         )}
 
-        {/* Section 1: Product Specifications */}
-        <Card className="border-stone-200/80 bg-white studio-card-shadow rounded-2xl">
-          <CardHeader className="border-b border-stone-100 pb-4">
-            <CardTitle className="text-base font-bold font-display text-stone-900">
-              1. Product Identity & Dimensions
-            </CardTitle>
-            <CardDescription className="text-xs text-stone-500">
-              Provide product details and real-world dimensions used for accurate 3D WebGL scaling
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="space-y-1.5 md:col-span-1">
-                <label className="text-xs font-bold text-stone-700">
-                  Product Name <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  required
-                  placeholder="e.g. Modern Minimalist Armchair"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="bg-white border-stone-200/90 shadow-2xs"
-                />
-              </div>
-
-              <div className="space-y-1.5 md:col-span-1">
-                <label className="text-xs font-bold text-stone-700">
-                  Category <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg border border-stone-200/90 bg-white text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900"
-                >
-                  <option value="Chair">Chair</option>
-                  <option value="Sofa">Sofa</option>
-                  <option value="Table">Table</option>
-                  <option value="Bed">Bed</option>
-                  <option value="Cabinet">Cabinet</option>
-                  <option value="Home Decor">Home Decor</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 md:col-span-1">
-                <label className="text-xs font-bold text-stone-700 flex items-center justify-between">
-                  <span>Purchase Price (BDT ৳) <span className="text-rose-500">*</span></span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-500">৳</span>
-                  <Input
-                    type="number"
-                    required
-                    min="100"
-                    placeholder="e.g. 32500"
-                    value={priceBdt}
-                    onChange={(e) => setPriceBdt(e.target.value)}
-                    className="bg-white border-stone-200/90 pl-7 shadow-2xs font-mono font-semibold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-stone-700">
-                Description (Optional)
-              </label>
-              <Textarea
-                placeholder="Details on materials, finish, upholstery..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="bg-white border-stone-200/90 shadow-2xs"
-              />
-            </div>
-
-            {/* Dimensions */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-stone-700">
-                  Physical Dimensions <span className="text-rose-500">*</span>
-                </label>
-                <div className="inline-flex rounded-lg border border-stone-200 p-0.5 bg-stone-100 text-xs font-medium">
-                  <button
-                    type="button"
-                    onClick={() => setDimensionUnit("cm")}
-                    className={`px-3 py-1 rounded-md transition-all ${
-                      dimensionUnit === "cm"
-                        ? "bg-white shadow-2xs text-stone-900 font-bold"
-                        : "text-stone-500 hover:text-stone-800"
-                    }`}
-                  >
-                    Centimeters (cm)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDimensionUnit("mm")}
-                    className={`px-3 py-1 rounded-md transition-all ${
-                      dimensionUnit === "mm"
-                        ? "bg-white shadow-2xs text-stone-900 font-bold"
-                        : "text-stone-500 hover:text-stone-800"
-                    }`}
-                  >
-                    Millimeters (mm)
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <span className="text-xs font-medium text-stone-500">Width ({dimensionUnit})</span>
-                  <Input
-                    type="number"
-                    min="1"
-                    step="0.1"
-                    required
-                    value={width}
-                    onChange={(e) => setWidth(e.target.value)}
-                    className="bg-white border-stone-200/90"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-xs font-medium text-stone-500">Depth ({dimensionUnit})</span>
-                  <Input
-                    type="number"
-                    min="1"
-                    step="0.1"
-                    required
-                    value={depth}
-                    onChange={(e) => setDepth(e.target.value)}
-                    className="bg-white border-stone-200/90"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-xs font-medium text-stone-500">Height ({dimensionUnit})</span>
-                  <Input
-                    type="number"
-                    min="1"
-                    step="0.1"
-                    required
-                    value={height}
-                    onChange={(e) => setHeight(e.target.value)}
-                    className="bg-white border-stone-200/90"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Section 2: Generation Mode & Dedicated Upload Zones */}
-        <div className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200/90 studio-card-shadow">
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-700" />
-                <h3 className="text-sm font-bold text-stone-900 font-display">
-                  {generationMode === "image_to_3d" ? "2. Single Image to 3D" : "2. Multi Image to 3D (4 Angles)"}
-                </h3>
-              </div>
-              <p className="text-xs text-stone-500 mt-0.5">
+              <h2 className="font-display text-lg font-bold text-stone-900">
+                {generationMode === "image_to_3d" ? "Add a photo" : "Add four photos"}
+              </h2>
+              <p className="text-sm text-stone-500">
                 {generationMode === "image_to_3d"
-                  ? "Fast AI depth estimation from one photograph"
-                  : "Full multi-view reconstruction from four photographs"}
+                  ? "One clear photo on a plain background works best."
+                  : "Same lighting and camera height, turning 90° each time."}
               </p>
             </div>
-            <Link
-              href={generationMode === "image_to_3d" ? "/create/multi" : "/create/single"}
-              className="self-start sm:self-auto text-xs font-semibold text-amber-800 hover:underline"
-            >
-              {generationMode === "image_to_3d" ? "Use 4 angles instead" : "Use a single photo instead"}
-            </Link>
-          </div>
-
-          {/* Mode Header & Upload Status */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h4 className="text-sm font-bold text-stone-900">
-                {generationMode === "image_to_3d"
-                  ? "Single Product Photograph Upload"
-                  : "Four-Angle Multi-Perspective Photography"}
-              </h4>
-              <p className="text-xs text-stone-500">
-                {generationMode === "image_to_3d"
-                  ? "Upload a clean, well-lit photograph of the furniture piece against a plain background"
-                  : "Photograph the product under consistent studio lighting from all four cardinal angles"}
-              </p>
-            </div>
-            <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/70 px-3 py-1 rounded-full self-start sm:self-auto">
-              {generationMode === "image_to_3d"
-                ? `${slots.front.file !== null ? "1 of 1" : "0 of 1"} photo uploaded`
-                : `${Object.values(slots).filter((s) => s.file !== null).length} of 4 angles uploaded`}
+            <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
+              {photoCount} of {photoTotal} added
             </span>
           </div>
 
-          {/* Photography Best Practice Hint */}
-          <div className="p-3.5 rounded-xl border border-stone-200/80 bg-stone-50/60 flex items-center gap-3 text-xs text-stone-600">
-            <Lightbulb className="h-4 w-4 text-amber-600 shrink-0" />
-            <span>
-              {generationMode === "image_to_3d" ? (
-                <>
-                  <strong>Single Image Tip:</strong> Best results are achieved with 3/4 or direct perspective in high-contrast neutral lighting without obstructions.
-                </>
-              ) : (
-                <>
-                  <strong>Multi-Angle Tip:</strong> Place the furniture on a clean, neutral floor. Keep the camera height constant while rotating 90° around the object for true 360° geometry.
-                </>
-              )}
-            </span>
-          </div>
-
-          {/* Upload Dropzones */}
           {generationMode === "image_to_3d" ? (
-            <div className="max-w-md mx-auto">
+            <div className="max-w-xs">
               <DropzoneSlot
-                slot={{
-                  ...slots.front,
-                  title: "Primary Product Photo",
-                  description: "Direct view of the furniture piece in natural or studio lighting.",
-                }}
+                slot={{ ...slots.front, title: "Product photo" }}
                 onFileSelect={(file) => handleFileSelect("front", file)}
                 onRemove={() => handleRemoveImage("front")}
               />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {(["front", "back", "left", "right"] as AngleView[]).map((view) => {
-                const slot = slots[view];
-                return (
-                  <DropzoneSlot
-                    key={view}
-                    slot={slot}
-                    onFileSelect={(file) => handleFileSelect(view, file)}
-                    onRemove={() => handleRemoveImage(view)}
-                  />
-                );
-              })}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {(["front", "back", "left", "right"] as AngleView[]).map((view) => (
+                <DropzoneSlot
+                  key={view}
+                  slot={slots[view]}
+                  onFileSelect={(file) => handleFileSelect(view, file)}
+                  onRemove={() => handleRemoveImage(view)}
+                />
+              ))}
             </div>
           )}
-        </div>
 
-        {/* Primary CTA */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-stone-200">
+          <Link
+            href={generationMode === "image_to_3d" ? "/create/multi" : "/create/single"}
+            className="inline-block text-xs font-semibold text-amber-800 hover:underline"
+          >
+            {generationMode === "image_to_3d" ? "Have more angles? Use 4 photos instead" : "Only have one photo? Use a single photo instead"}
+          </Link>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="font-display text-lg font-bold text-stone-900">Product details</h2>
+
+          <Field id="product-name" label="Name">
+            <Input
+              id="product-name"
+              required
+              placeholder="e.g. Modern Minimalist Armchair"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="product-category" label="Category">
+              <select
+                id="product-category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-stone-900"
+              >
+                {["Chair", "Sofa", "Table", "Bed", "Cabinet", "Home Decor", "Other"].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="product-price" label="Price (BDT)">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-500">৳</span>
+                <Input
+                  id="product-price"
+                  type="number"
+                  required
+                  min="100"
+                  placeholder="32500"
+                  value={priceBdt}
+                  onChange={(e) => setPriceBdt(e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+            </Field>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-stone-700" id="dimensions-label">
+                Size
+              </span>
+              <div className="inline-flex rounded-lg bg-stone-100 p-0.5 text-xs font-medium" role="group" aria-label="Unit">
+                {(["cm", "mm"] as const).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    aria-pressed={dimensionUnit === unit}
+                    onClick={() => setDimensionUnit(unit)}
+                    className={`rounded-md px-3 py-1 transition-colors ${
+                      dimensionUnit === unit ? "bg-white font-semibold text-stone-900 shadow-2xs" : "text-stone-500 hover:text-stone-800"
+                    }`}
+                  >
+                    {unit}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3" role="group" aria-labelledby="dimensions-label">
+              {[
+                { id: "dim-width", label: "Width", value: width, set: setWidth },
+                { id: "dim-depth", label: "Depth", value: depth, set: setDepth },
+                { id: "dim-height", label: "Height", value: height, set: setHeight },
+              ].map((dim) => (
+                <div key={dim.id}>
+                  <label htmlFor={dim.id} className="sr-only">
+                    {dim.label} ({dimensionUnit})
+                  </label>
+                  <Input
+                    id={dim.id}
+                    type="number"
+                    min="1"
+                    step="0.1"
+                    required
+                    placeholder={dim.label}
+                    value={dim.value}
+                    onChange={(e) => dim.set(e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-stone-400">Real-world size, used to scale the 3D model correctly.</p>
+          </div>
+
+          <Field id="product-description" label="Description" optional>
+            <Textarea
+              id="product-description"
+              placeholder="Materials, finish, upholstery…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </Field>
+        </section>
+
+        <div className="flex flex-col-reverse items-stretch gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-stone-500">{missingHint ?? "Ready to generate."}</p>
           <Button
             type="submit"
             size="lg"
-            disabled={!allImagesUploaded || !name.trim()}
-            className="gap-2 px-8 bg-stone-900 hover:bg-stone-800 text-white shadow-xs font-bold"
+            disabled={missingHint !== null}
+            className="gap-2 bg-stone-900 px-8 font-semibold text-white hover:bg-stone-800"
           >
-            <span>Review & Generate 3D</span>
+            <span>Review & generate</span>
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </form>
 
-      {/* Pre-Generation Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/40 backdrop-blur-xs">
-          <Card className="max-w-2xl w-full p-6 bg-white space-y-6 shadow-2xl rounded-2xl border border-stone-200 animate-in fade-in-50 zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-100">
-              <div>
-                <h3 className="text-lg font-bold text-stone-900 font-display">
-                  Review 3D Model Generation
-                </h3>
-                <p className="text-xs text-stone-500">
-                  {generationMode === "image_to_3d"
-                    ? "Confirm single photograph and Meshy Image-to-3D parameters"
-                    : "Confirm your 4 product angles and Meshy Multi-Image parameters"}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowReviewModal(false)}
-                disabled={submitting}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="review-title"
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !submitting) setShowReviewModal(false);
+          }}
+        >
+          <Card className="w-full max-w-lg space-y-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
+            <div>
+              <h3 id="review-title" className="font-display text-lg font-bold text-stone-900">
+                Ready to generate?
+              </h3>
+              <p className="text-sm text-stone-500">Check the details, then start. This uses AI credits.</p>
             </div>
 
-            {/* Image Preview Grid */}
-            {generationMode === "image_to_3d" ? (
-              <div className="max-w-xs mx-auto text-center space-y-1.5">
-                <div className="aspect-square rounded-xl border border-stone-200 overflow-hidden bg-stone-100 shadow-2xs">
-                  {slots.front.previewUrl && (
+            <div className={`grid gap-2 ${generationMode === "image_to_3d" ? "max-w-24 grid-cols-1" : "grid-cols-4"}`}>
+              {(generationMode === "image_to_3d" ? (["front"] as AngleView[]) : (["front", "back", "left", "right"] as AngleView[])).map((v) => (
+                <div key={v} className="aspect-square overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
+                  {slots[v].previewUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={slots.front.previewUrl}
-                      alt="Primary Product"
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={slots[v].previewUrl!} alt={`${v} photo`} className="h-full w-full object-cover" />
                   )}
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-stone-600">
-                  Primary Photo (Image to 3D)
-                </span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-2.5">
-                {(["front", "back", "left", "right"] as AngleView[]).map((v) => (
-                  <div key={v} className="space-y-1.5 text-center">
-                    <div className="aspect-square rounded-xl border border-stone-200 overflow-hidden bg-stone-100 shadow-2xs">
-                      {slots[v].previewUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={slots[v].previewUrl!}
-                          alt={v}
-                          className="h-full w-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-stone-600">
-                      {v}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
 
-            {/* Specs Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-stone-200/80 bg-stone-50/70 text-xs">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-stone-50 p-4 text-sm">
               <div>
-                <span className="text-stone-400 block text-xs">Product</span>
-                <span className="font-bold text-stone-800">{name}</span>
+                <dt className="text-xs text-stone-400">Product</dt>
+                <dd className="font-semibold text-stone-800">{name}</dd>
               </div>
               <div>
-                <span className="text-stone-400 block text-xs">Pipeline Mode</span>
-                <span className="font-bold text-amber-800">
-                  {generationMode === "image_to_3d" ? "Image to 3D" : "Multi Image to 3D"}
-                </span>
+                <dt className="text-xs text-stone-400">Category</dt>
+                <dd className="font-semibold text-stone-800">{category}</dd>
               </div>
               <div>
-                <span className="text-stone-400 block text-xs">Category</span>
-                <span className="font-bold text-stone-800">{category}</span>
-              </div>
-              <div>
-                <span className="text-stone-400 block text-xs">Dimensions</span>
-                <span className="font-bold text-stone-800">
+                <dt className="text-xs text-stone-400">Size</dt>
+                <dd className="font-semibold text-stone-800">
                   {widthMm / 10} × {depthMm / 10} × {heightMm / 10} cm
-                </span>
+                </dd>
               </div>
               <div>
-                <span className="text-stone-400 block text-xs">Texture Map</span>
-                <span className="font-bold text-stone-800">2K Resolution</span>
-              </div>
-              <div>
-                <span className="text-stone-400 block text-xs">Estimated Cost</span>
-                <span className="font-bold text-amber-700">
+                <dt className="text-xs text-stone-400">Cost</dt>
+                <dd className="font-semibold text-amber-700">
                   {creditInfo
                     ? `${generationMode === "image_to_3d" ? creditInfo.single : creditInfo.multi} credits (${creditInfo.remaining} left)`
                     : "—"}
-                </span>
+                </dd>
               </div>
-            </div>
+            </dl>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowReviewModal(false)}
-                disabled={submitting}
-                className="border-stone-200 text-stone-700 hover:bg-stone-50"
-              >
-                Cancel
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowReviewModal(false)} disabled={submitting}>
+                Back
               </Button>
               <Button
                 onClick={handleConfirmAndGenerate}
                 disabled={submitting}
-                className="gap-2 min-w-44 bg-stone-900 hover:bg-stone-800 text-white font-bold shadow-xs"
+                autoFocus
+                className="min-w-40 gap-2 bg-stone-900 font-semibold text-white hover:bg-stone-800"
               >
-                {submitting ? (
-                  <>
-                    <Sparkles className="h-4 w-4 animate-spin" />
-                    <span>Initiating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    <span>Generate 3D Model</span>
-                  </>
-                )}
+                <Sparkles className={`h-4 w-4 ${submitting ? "animate-spin" : ""}`} />
+                <span>{submitting ? "Starting…" : "Generate 3D model"}</span>
               </Button>
             </div>
           </Card>
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+function Field({
+  id,
+  label,
+  optional,
+  children,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-stone-700">
+        {label}
+        {optional && <span className="ml-1 font-normal text-stone-400">(optional)</span>}
+      </label>
+      {children}
+    </div>
   );
 }
 
@@ -781,97 +656,66 @@ function DropzoneSlot({
   const [isDragOver, setIsDragOver] = useState(false);
 
   return (
-    <Card
-      className={`relative overflow-hidden border-2 transition-all flex flex-col justify-between rounded-2xl studio-card-shadow ${
-        slot.previewUrl
-          ? "border-emerald-300 bg-emerald-50/20"
-          : isDragOver
-          ? "border-stone-900 bg-stone-50"
-          : "border-dashed border-stone-200 bg-white hover:border-stone-400"
-      }`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragOver(true);
-      }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsDragOver(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) onFileSelect(file);
-      }}
-    >
+    <div className="space-y-1.5">
       <input
         ref={inputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
+        aria-label={`${slot.title} photo`}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) onFileSelect(file);
+          e.target.value = "";
         }}
       />
 
-      <div className="p-3.5 border-b border-stone-100 flex items-center justify-between">
-        <span className="text-xs font-bold text-stone-900">{slot.title}</span>
+      {slot.previewUrl ? (
+        <div className="aspect-square overflow-hidden rounded-2xl border border-stone-200 bg-stone-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={slot.previewUrl} alt={slot.title} className="h-full w-full object-cover" />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) onFileSelect(file);
+          }}
+          className={`flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-center transition-colors ${
+            isDragOver ? "border-amber-500 bg-amber-50" : "border-stone-200 bg-white hover:border-stone-400"
+          }`}
+        >
+          <Upload className="h-5 w-5 text-stone-400" />
+          <span className="text-xs font-medium text-stone-600">Tap or drop</span>
+          <span className="text-xs text-stone-400">JPG, PNG, WebP</span>
+        </button>
+      )}
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1 font-semibold text-stone-700">
+          {slot.previewUrl && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+          {slot.title}
+        </span>
         {slot.previewUrl && (
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span className="flex items-center gap-2">
+            <button type="button" onClick={() => inputRef.current?.click()} className="font-medium text-stone-500 hover:text-stone-900">
+              Replace
+            </button>
+            <button type="button" onClick={onRemove} aria-label={`Remove ${slot.title} photo`} className="text-stone-400 hover:text-rose-600">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
         )}
       </div>
-
-      <div className="p-4 flex-1 flex flex-col items-center justify-center min-h-44">
-        {slot.previewUrl ? (
-          <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-stone-200 bg-stone-100 group shadow-2xs">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={slot.previewUrl}
-              alt={slot.title}
-              className="h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-stone-950/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs font-medium"
-                onClick={() => inputRef.current?.click()}
-              >
-                Replace
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                className="h-7 text-xs"
-                onClick={onRemove}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div
-            onClick={() => inputRef.current?.click()}
-            className="cursor-pointer text-center space-y-2.5 p-3 hover:scale-[1.02] transition-transform"
-          >
-            <div className="h-10 w-10 rounded-xl bg-stone-100 text-stone-600 mx-auto flex items-center justify-center">
-              <Upload className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-stone-800">
-                Click or drag image
-              </p>
-              <p className="text-xs text-stone-400 mt-0.5">
-                PNG, JPG, WebP up to 10MB
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="p-3 bg-stone-50/80 border-t border-stone-100 text-xs text-stone-500 text-center font-medium">
-        {slot.description}
-      </div>
-    </Card>
+    </div>
   );
 }
